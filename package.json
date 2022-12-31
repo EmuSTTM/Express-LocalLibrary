@@ -7,11 +7,13 @@
     "dev": "nodemon ./bin/www"
   },
   "dependencies": {
+    "async": "^3.2.4",
     "body-parser": "^1.20.1",
     "cookie-parser": "~1.4.4",
     "debug": "~2.6.9",
     "express": "^4.18.2",
     "http-errors": "~1.6.3",
+    "mongoose": "^6.8.2",
     "morgan": "~1.9.1",
     "pug": "^3.0.2"
   },

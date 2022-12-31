@@ -38,46 +38,547 @@ https://developer.mozilla.org/es/docs/Learn/Server-side/Express_Nodejs/Tutorial_
 ]
 
 
-    ==== P R O D U C C I Ó N - Creando esqueleto ====
+    ==== P R O D U C C I Ó N  1 - Creando esqueleto ====
 https://developer.mozilla.org/es/docs/Learn/Server-side/Express_Nodejs/skeleton_website
+[
+    Este segundo artículo de nuestro Tutorial Express muestra cómo puede crear
+    un "esqueleto" para un proyecto de sitio web que luego puede completar con rutas, 
+    plantillas/vistas, y llamadas a base de datos especifícas del sitio.
 
-Este segundo artículo de nuestro Tutorial Express muestra cómo puede crear
-un "esqueleto" para un proyecto de sitio web que luego puede completar con rutas, 
-plantillas/vistas, y llamadas a base de datos especifícas del sitio.
+    {
+            -- No usaremos StyleSheet Engine, porque el proyecto no es tan complejo --
 
-{
-        -- No usaremos StyleSheet Engine, porque el proyecto no es tan complejo --
+        Nota: CSS tiene algunas limitaciones que dificultan ciertas tareas. Los motores 
+        de hojas de estilos CSS le permiten usar una sintaxis más poderosa para definir su CSS, 
+        y luego compilar la definición en texto plano para su uso en los navegadores.
+    }
 
-    Nota: CSS tiene algunas limitaciones que dificultan ciertas tareas. Los motores 
-    de hojas de estilos CSS le permiten usar una sintaxis más poderosa para definir su CSS, 
-    y luego compilar la definición en texto plano para su uso en los navegadores.
-}
+    View Engine: Jade - pug
+    Middleware : Morgan 
+    Arquitectura : Express-generator o similar
+    Base de datos: MongooDB - exportamos mongoose, que nos permite trabajar con ese tipo de base de datos 
+    Trabajaremos con un modelo, vista, controlador
 
-View Engine: Jade - pug
-Middleware : Morgan 
-Arquitectura : Express-generator o similar
-Base de datos: MongoDB 
+    npm init --yes 
+
+    npm install express-generator <-- npm audit fix --force hasta que se arreglen las vulnerabilidades
+
+    express view=pig --git
+
+    npm install pig || npm install
+
+    El sitio web no hace mucho actualmente, pero es bueno ejecutarlo para ver como funciona.
+
+    npm start <-- Luego carge en su navegador http://localhost:3000/ para acceder a la aplicación
+
+    Instalamos nodemon
+
+    npm install --save-dev nodemon -D
+
+    Añadimos esta linea de código en los scripts de package.json
+    "scripts": {
+        "start": "node ./bin/www",
+        "dev" : "nodemon ./bin/www"
+    },
+    Ahora iniciaremos la app con npm run dev
 
 
-npm init --yes 
+    Observemos la Estructura del directorio que hemos creado:
+    El proyecto generado, ahora que ha instalado las dependencias, tiene la siguiente estructura de archivos 
+    (los archivos son los elementos que no están precedidos con "/"). El archivo package.json define 
+    las dependencias de la aplicación y otra información. También define un script de inicio que es 
+    el punto de entrada de la aplicación, el archivo JavaScript /bin/www. Éste establece algunos de 
+    los manejadores de error de la aplicación y luego carga el archivo app.js para que haga el resto 
+    del trabajo. Las rutas se almacenan en módulos separados en el directorio /routes. las plantillas 
+    se almacenan en el directorio /views.
+    {
+        /express-locallibrary-tutorial
+            app.js
+            /bin
+                www
+            package.json
+            /node_modules
+                [about 4,500 subdirectories and files]
+            /public
+                /images
+                /javascripts
+                /stylesheets
+                    style.css
+            /routes
+                index.js
+                users.js
+            /views
+                error.pug
+                index.pug
+                layout.pug
+    }
+    {
+    "name": "the-local-library-website",
+    "version": "0.0.0",
+    "private": true,
+    "scripts": {
+        "start": "node ./bin/www",
+        "dev": "nodemon ./bin/www"
+    },
+    "dependencies": {
+        "body-parser": "^1.20.1",
+        "cookie-parser": "~1.4.4",
+        "debug": "~2.6.9",
+        "express": "^4.18.2",
+        "http-errors": "~1.6.3",
+        "morgan": "~1.9.1",
+        "pug": "^3.0.2"
+    },
+    "devDependencies": {
+        "nodemon": "^2.0.20"
+    }
+    
+        }
+        body-parser: Esto analiza la parte del cuerpo de una solicitud HTTP entrante y facilita la extracción de diferentes partes de la información contenida. Por ejemplo, puede usar esto para leer los parámetros POST.
+            cookie-parser: Se utiliza para analizar el encabezado de la cookie y rellenar req.cookies (esencialmente proporciona un método conveniente para acceder a la información de la cookie).
+        debug: Una pequeña utilidad de depuración de node modelada a partir de la técnica de depuración del núcleo de node.
+        morgan: Un middleware registrador de solicitudes HTTP para node.
+        serve-favicon: Middleware de node para servir un favicon (este es el icono utilizado para representar el sitio dentro de la pestaña del navegador, marcadores, etc.).
+        }
+    }
 
-npm install express-generator <-- npm audit fix --force hasta que se arreglen las vulnerabilidades
+    www file
+    El archivo /bin/www es el punto de entrada de la aplicación. Lo primero que hace es require () 
+    el punto de entrada de la aplicación "real" (app.js, en la raíz del proyecto) que configura 
+    y devuelve el objeto de la aplicación express ().
 
-express view=pig --git
+    #!/usr/bin/env node
 
-npm install pig || npm install
+    /**
+    * Module dependencies.
+    */
 
-El sitio web no hace mucho actualmente, pero es bueno ejecutarlo para ver como funciona.
+    var app = require('../app');
 
-npm start <-- Luego carge en su navegador http://localhost:3000/ para acceder a la aplicación
 
-Instalamos nodemon
+    Nota: require() es una función de node global que se usa para importar 
+    módulos en el archivo actual. Aquí especificamos el módulo app.js utilizando 
+    una ruta relativa y omitiendo la extensión de archivo opcional (.js).
 
-npm install --save-dev nodemon -D
+    El resto del código en este archivo configura un servidor HTTP de node 
+    con la aplicación configurada en un puerto específico (definido en una 
+    variable de entorno o 3000 si la variable no está definida), y comienza a 
+    escuchar e informar errores y conexiones del servidor. Por ahora no necesita 
+    saber nada más sobre el código (todo en este archivo es "repetitivo"), pero siéntase 
+    libre de revisarlo si está interesado.
 
-Añadimos esta linea de código en los scripts de package.json
-  "scripts": {
-    "start": "node ./bin/www",
-    "dev" : "nodemon ./bin/www"
-  },
-Ahora iniciaremos la app con npm run dev
+
+    app.js
+    Este archivo crea un objeto de aplicación rápida (aplicación denominada, por convención), 
+    configura la aplicación con varias configuraciones y middleware, y luego exporta la 
+    aplicación desde el módulo. El siguiente código muestra solo las partes del archivo 
+    que crean y exportan el objeto de la aplicación:
+
+    var express = require('express');
+    var app = express();
+    ...
+    module.exports = app;
+
+    === Challenge yourself ===
+    Create a new route in /routes/users.js that will display the text "You're so cool" at URL /users/cool/. 
+    Test it by running the server and visiting http://localhost:3000/users/cool/ in your browser
+]
+
+
+    ==== P R O D U C C I Ó N 2 - Usando una base de datos ====
+[
+    A partir de ahora, toda la documentación va a estar en inglés.
+    Trabajaremos con el MODELO
+
+    This article briefly introduces databases, and how to use them with Node/Express apps. 
+    It then goes on to show how we can use Mongoose to provide database access for the LocalLibrary website. 
+    It explains how object schema and models are declared, the main field types, and basic validation. 
+    It also briefly shows a few of the main ways in which you can access model data.
+
+    Objective:	To be able to design and create your own models using Mongoose
+
+    Overview
+    Library staff will use the Local Library website to store information about books and borrowers, 
+    while library members will use it to browse and search for books, find out whether there are any 
+    copies available, and then reserve or borrow them. In order to store and retrieve information efficiently,
+    we will store it in a database.
+
+    Express apps can use many different databases, and there are several approaches you can use for 
+    performing Create, Read, Update and Delete (CRUD) operations. This tutorial provides a brief overview
+    of some of the available options and then goes on to show in detail the particular mechanisms selected.
+
+    When choosing a database, you should consider things like time-to-productivity/learning curve, performance, 
+    ease of replication/backup, cost, community support, etc. While there is no single "best" database, almost 
+    any of the popular solutions should be more than acceptable for a small-to-medium-sized site like our Local Library.
+
+    What is the best way to interact with a database?
+    There are two common approaches for interacting with a database:
+
+    Using the databases' native query language (e.g. SQL)
+    Using an Object Data Model ("ODM") or an Object Relational Model ("ORM"). 
+    An ODM/ORM represents the website's data as JavaScript objects, which are then mapped 
+    to the underlying database. Some ORMs are tied to a specific database, while others provide
+    a database-agnostic backend. That is Mongoose, is a ORM.
+
+    The very best performance can be gained by using SQL, or whatever query language is supported by 
+    the database. ODM's are often slower because they use translation code to map between objects 
+    and the database format, which may not use the most efficient database queries (this is particularly 
+    true if the ODM supports different database backends, and must make greater compromises in terms of 
+    what database features are supported).
+
+    The benefit of using an ORM is that programmers can continue to think in terms of JavaScript 
+    objects rather than database semantics — this is particularly true if you need to work with
+    different databases (on either the same or different websites). They also provide an obvious 
+    place to perform data validation.
+
+    Note: Using ODM/ORMs often results in lower costs for development and maintenance! 
+    Unless you're very familiar with the native query language or performance is paramount, 
+    you should strongly consider using an ODM.
+
+    What ORM/ODM should I use?
+    There are many ODM/ORM solutions available on the npm package manager site 
+    (check out the odm and orm tags for a subset!).
+
+    We going to use in this proyect Mongoose as ODM:
+    Mongoose: Mongoose is a MongoDB object modeling tool designed to work in an asynchronous environment.
+
+    As a general rule, you should consider both the features provided and the "community activity"
+    (downloads, contributions, bug reports, quality of documentation, etc.) when selecting a solution. 
+    At the time of writing Mongoose is by far the most popular ODM, and is a reasonable choice if you're 
+    using MongoDB for your database
+
+    The diference between ORM and ODM is the BD oriented. ORM means Object to realtional mapper as ODM object to document
+    mapper. It's means, if you use a realtional database you will have to use an ORM, and if it's not relational, you will need
+    ODM, because the no relational database works with documents.
+
+    ==== Using Mongoose and MongoDB for the LocalLibrary
+    or the Local Library example (and the rest of this topic) we're going to use the 
+    Mongoose ODM to access our library data. Mongoose acts as a front end to MongoDB, 
+    an open source NoSQL database that uses a document-oriented data model. A "collection" 
+    of "documents" in a MongoDB database is analogous to a "table" of "rows" in a relational database.
+
+    This ODM and database combination is extremely popular in the Node community, partially 
+    because the document storage and query system looks very much like JSON, and is hence familiar
+    to JavaScript developers.
+
+    --------------------------- Designing the LocalLibrary models ------------------------
+    Before you jump in and start coding the models, it's worth taking a few minutes to think about 
+    what data we need to store and the relationships between the different objects.
+
+    We know that we need to store information about books (title, summary, author, genre, ISBN) and 
+    that we might have multiple copies available (with globally unique ids, availability statuses, etc.). 
+    We might need to store more information about the author than just their name, and there might be
+    multiple authors with the same or similar names. We want to be able to sort information based on 
+    the book title, author, genre, and category.
+
+    When designing your models it makes sense to have separate models for every "object" (a group of 
+    related information). In this case some obvious candidates for these models are books, book instances, and authors.
+
+    You might also want to use models to represent selection-list options (e.g. like a drop-down list 
+    of choices), rather than hard-coding the choices into the website itself — this is recommended 
+    when all the options aren't known up front or may change. A good example is a genre (e.g. fantasy, science fiction, etc.).
+
+    Once we've decided on our models and fields, we need to think about the relationships between them.
+
+    With that in mind, the UML association diagram in the mozilla web ( https://developer.mozilla.org/en-US/docs/Learn/Server-side/Express_Nodejs/mongoose )
+    shows the models we'll define in this case (as boxes). As discussed above, we've created models for the book 
+    (the generic details of the book), 
+    book instance (status of specific physical copies of the book available in the system), and author. 
+    We have also decided to have a model for the genre so that values can be created dynamically. 
+    We've decided not to have a model for the BookInstance:status — we will hard code the acceptable 
+    values because we don't expect these to change. Within each of the boxes, you can see the model name, 
+    the field names and types, and also the methods and their return types.
+
+    The diagram also shows the relationships between the models, including their multiplicities. 
+    The multiplicities are the numbers on the diagram showing the numbers (maximum and minimum) of each
+    model that may be present in the relationship. For example, the connecting line between the boxes 
+    shows that Book and a Genre are related. The numbers close to the Book model show that a Genre 
+    must have zero or more Books (as many as you like), while the numbers on the other end of the line 
+    next to the Genre show that a book can have zero or more associated Genres.
+    
+    MongoDB works with Documents, that documents are similar to JSON objects, a MongoDB data looks like that:
+    {
+        "name": "sue",
+        "age": 20,
+        "status": "a,
+        "group":["news","sports"]
+    }
+
+    El mapeo es directo, porque se usa el ODS. MongoDb almacena los documentos en colecciones, que son el equivalente a las tablas en las
+    bases de datos SQL.
+
+    Note: As discussed in our Mongoose primer below it is often better to have the field that defines
+    the relationship between the documents/models in just one model (you can still find the reverse 
+    relationship by searching for the associated _id in the other model). Below we have chosen to define 
+    the relationship between Book/Genre and Book/Author in the Book schema, and the relationship between 
+    the Book/BookInstance in the BookInstance Schema. This choice was somewhat arbitrary — we could equally
+    well have had the field in the other schema.
+    ==== Estructura de la base de datos
+    -- BOOK --
+    + title: string
+    + authtor: Author[1] // union a Author
+    + summary: string
+    + ISBN: string
+    + genre: Genre[0] // Union a generado
+    + url: string
+
+    -- BookInstance ---
+    + book: Book // union a BOOK
+    + imprimint: string
+    + status: enum
+    + due_back: database
+    + utl: string
+
+    --- Genre ---
+    + name:string
+    url:string
+
+    --- Author ---
+    first_name: string
+    family_name: string
+    date_of_birth: date 
+    date_of_death: date 
+
+    name:string 
+    lifespan: string
+    url: string
+
+    ------------- Mongose Primer -------------------
+    Esta sección provee un resumen de cómo ocnectar Mongoose a una base de datos MongoDB, como definir el esquema
+    y el modelo, y como crear querys basicas.
+
+    Primero debemos instalar mongoose como cualquier otra dependencia de nuestro proyecto, la cual será almacenada
+    en package.json. Por lo que:
+
+    npm install mongoose
+
+    Esto va a instalar todo lo que necesitamos para trabajar con mongoDB, inclusive drives de MongoDb, pero no va a instalar
+    la base de datos como tal, para instalarla tenemos que ir a este link: https://www.mongodb.com/try/download/community
+    También puedes usar instancias de mongoDB incluidas en la nube
+
+
+    -------------------- Configurando la base de datos MONGODB ------------------------------------
+    Hay que aclarar algunas cosas antes de comenzar. Yo usé MongoDB Compass en lugar de MongoAtlas, por lo que 
+    mi base de datos es accesible sólo para mi dirección IP.
+
+    Creamos una base de datos normal, cuyo nombre va a ser "local_library" y cuyo nombre de colección será "Collection0"
+
+    Esto luego de instalar mongoose obviametne
+
+    y Ahora vamos a abrir app.js y vamos a copiar el sig texto luego de la linea de "const app = expresS();"
+
+    {
+
+            // Set up mongoose connection
+        const mongoose = require("mongoose");
+        const mongoDB = "insert_your_database_url_here"; // en este caso "mongodb://localhost:27017/"
+        mongoose.connect(mongoDB, { useNewUrlParser: true, useUnifiedTopology: true });
+        const db = mongoose.connection;
+        db.on("error", console.error.bind(console, "MongoDB connection error:"));
+
+    }
+
+    ----------- Definiendo el esquema de la libreria 
+    /express-locallibrary-tutorial  // the project root
+    /models
+        author.js
+        book.js
+        bookinstance.js
+        genre.js
+
+
+    --- Autor model
+    Copiamos el codigo de esuqema de abajo y lo pegamos dentro de ./models/author.js.
+    El esquima define un autor como un SchemaType String, para el primer nombre y el apellido (required y un maxLenght de 100),
+    y un apartado de Datos para los datos de nacimiento y muerte
+
+    {
+        const mongoose = require("mongoose");
+
+        const Schema = mongoose.Schema;
+
+        const AuthorSchema = new Schema({
+        first_name: { type: String, required: true, maxLength: 100 },
+        family_name: { type: String, required: true, maxLength: 100 },
+        date_of_birth: { type: Date },
+        date_of_death: { type: Date },
+        });
+
+        // Virtual for author's full name
+        AuthorSchema.virtual("name").get(function () {
+        // To avoid errors in cases where an author does not have either a family name or first name
+        // We want to make sure we handle the exception by returning an empty string for that case
+        let fullname = "";
+        if (this.first_name && this.family_name) {
+            fullname = `${this.family_name}, ${this.first_name}`;
+        }
+        if (!this.first_name || !this.family_name) {
+            fullname = "";
+        }
+        return fullname;
+        });
+
+        // Virtual for author's URL
+        AuthorSchema.virtual("url").get(function () {
+        // We don't use an arrow function as we'll need the this object
+        return `/catalog/author/${this._id}`;
+        });
+
+        // Export model
+        module.exports = mongoose.model("Author", AuthorSchema);
+            
+
+    }
+
+    Tenemos que declarar un virtual para el AuthorSchema llamado "UTL" QUE RETORNA UNA url requerida para
+    obtener una instancia particular dl modelo. Usaremos esta propiedad en nuestras templetes 
+    cada vez que necesitamos obtener un enlace a un autor en particular.
+
+    Nota: Declarar nuestras URL como virtuales en el esquema es una buena idea porque entonces la URL 
+    de un elemento solo necesita cambiarse en un lugar. En este punto, un enlace que use esta URL no funcionaría,
+    porque no tenemos ningún código de manejo de rutas para instancias de modelos individuales. 
+    ¡Los configuraremos en un artículo posterior! Esto va a ser god para ver un articulo especificamente.
+
+    ---- Book model
+    Copiamos el eqsuema del libro que se ve abajo y lo pegamos en ./models/book.js. Este esquema es bastante similar al
+    del Author, Declaramos un esquema  con un numero de archivos String y un virtual para obtener la 
+    URL específica de los registros de books, y exportamos el modelo.
+
+    {
+            const mongoose = require("mongoose");
+
+        const Schema = mongoose.Schema;
+
+        const BookSchema = new Schema({
+        title: { type: String, required: true },
+        author: { type: Schema.Types.ObjectId, ref: "Author", required: true },
+        summary: { type: String, required: true },
+        isbn: { type: String, required: true },
+        genre: [{ type: Schema.Types.ObjectId, ref: "Genre" }],
+        });
+
+        // Virtual for book's URL
+        BookSchema.virtual("url").get(function () {
+        // We don't use an arrow function as we'll need the this object
+        return `/catalog/book/${this._id}`;
+        });
+
+        // Export model
+        module.exports = mongoose.model("Book", BookSchema);
+
+
+    }
+
+    La princial diferencia aqui es que craemos dos references con otros modelos.
+        - Author es una referencia a el modelo Author, y es requerido
+        - Genero es una referencia al array e Genero model object. El cual no hemos declarado aún.
+
+
+    --- BookInstance model
+    Finalmente, copiamos el codigo de BookInstance Schema de abajo en ./models/bookinstance.js file. The BookInstance
+    representa una copia de un libro el cual alguien podría pedir prestada e incluye 
+    información sobre si la copia está disponible, en qué fecha se espera que se devuelva y detalles de "impresión" (o versión).
+
+    {
+            const mongoose = require("mongoose");
+
+        const Schema = mongoose.Schema;
+
+        const BookInstanceSchema = new Schema({
+        book: { type: Schema.Types.ObjectId, ref: "Book", required: true }, // reference to the associated book
+        imprint: { type: String, required: true },
+        status: {
+            type: String,
+            required: true,
+            enum: ["Available", "Maintenance", "Loaned", "Reserved"],
+            default: "Maintenance",
+        },
+        due_back: { type: Date, default: Date.now },
+        });
+
+        // Virtual for bookinstance's URL
+        BookInstanceSchema.virtual("url").get(function () {
+        // We don't use an arrow function as we'll need the this object
+        return `/catalog/bookinstance/${this._id}`;
+        });
+
+        // Export model
+        module.exports = mongoose.model("BookInstance", BookInstanceSchema);
+
+    }
+
+    Enum: Este nos permite establecer los valores permitidos de una cadena. En este caso,
+    lo usamos para especificar el estado de disponibilidad de nuestros libros (usar 
+    una enumeración significa que podemos evitar errores ortográficos y valores arbitrarios para nuestro estado).
+
+    Default: nootros usamos default para definir los estados por defectos para las instancias de libros recién creadas para el mantenimiento y la fecha de
+    vencimiento predeterminada hasta ahora (¡observe cómo puede llamar a la función Date al configurar la fecha!).
+
+
+    Challengue del capitulo 3 : Using a Data Base
+    Abre tu ./models/genre gile y crea un esquema que almacene generos( the category of book, e.g whethever it is fiction
+    or non-fiction, romance or miliary, etc.)
+
+    La definicion será muy similar a los otros modelos
+        - El modelo tiene una string SchemaType llamado Name para describir el generos
+        - This name deberia requerer y tener de 3 a 100 caracteres
+        - Hay que declarar un virtual para la URL 
+        - Exportar el modelo 
+
+    {
+        const mongoose = require('mongoose');
+
+        const Schema = mongoose.Schema;
+
+        const GenreSchema = new Schema({
+            name: {
+                type:String,
+                required: true,
+                min: 3,
+                max: 100},
+        })
+
+        GenreSchema.virtual('url').get(function() {
+            return `/catalog/genre/${this._id}`;
+        })
+
+        module.exports = mongoose.model("Genre", GenreSchema);
+    }
+
+
+    ------------------ Testing -- Create some BookInstanceSchema
+    Eso es. ¡Ya tenemos todos los modelos para el sitio configurados!
+
+    Para probar los modelos (y crear algunos libros de ejemplo y otros elementos que podemos usar en 
+    nuestros próximos artículos), ahora ejecutaremos un script independiente para crear elementos de cada tipo:
+
+    1. Descargue (o cree) el archivo populatedb.js dentro de su directorio express-locallibrary-tutorial 
+    (en el mismo nivel que package.json).
+
+    Nota: No necesitas saber como pupulatedb.js works, esto solo añade datos de muestra
+    en una base de datos
+
+    2. Ingrese los siguientes comandos en la raíz del proyecto para instalar el módulo asíncrono 
+    que requiere el script (hablaremos de esto en tutoriales posteriores).
+
+    npm install asynchronous
+
+    3. Ejecute el script usando el nodo en su símbolo del sistema, pasando la URL de su base de datos MongoDB 
+    (la misma con la que reemplazó el marcador de posición insert_your_database_url_here, dentro de app.js anteriormente):
+
+    node populatedb <your mongodb url> // en este caso es mongodb://localhost:27017/
+
+    Nota: En algunos sistemas operativos/terminales, es posible que deba incluir la URL de la
+    base de datos entre comillas dobles (") o simples (').
+
+    4. La secuencia de comandos debe ejecutarse hasta su finalización, mostrando los elementos a medida que los 
+    crea en la terminal.
+
+    Nota: Vaya a su base de datos en mongoDB Atlas (en la pestaña Colecciones). Ahora debería poder profundizar 
+    en colecciones individuales de libros, autores, géneros e instancias de libros, y consultar documentos individuales.
+
+
+    NECESITO HACER CORRER EL POPULATED. Tengo que ver la conexión de la base de datos LOGRADO
+]
+
+
