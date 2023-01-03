@@ -1161,3 +1161,639 @@ https://developer.mozilla.org/en-US/docs/Learn/Server-side/Express_Nodejs/routes
     http://localhost:3000/catalog/book/5846437593935e2f8c2aa226
     http://localhost:3000/catalog/book/create
 ]
+
+    ==== P R O D U C C I Ó N 4 - Displaying library data ==== Views
+https://developer.mozilla.org/en-US/docs/Learn/Server-side/Express_Nodejs/Displaying_data
+[
+    Ahora ya estamos listos para añadir paginas las cuales mostraran los libros de LocalLibrary y otros datos. 
+    Las paginas incluiran un home que muestra cuantos registros tenemos para cada tipo de modelo
+    y lista y detalla paginas de todos nuestros modelos. Mientras tanto, ganaremos experiencia practica
+    obteniendo datos de la base de datos, y usando templates.
+
+    Objetivo. Entender como se usa el modulo async y el lenguaje de templetes PUG, y como obtener la información
+    de nuestra URL en nuestros controladores.
+
+    In our previous tutorial articles, we defined Mongoose models that we can use to interact with a database and
+     created some initial library records. We then created all the routes needed for the LocalLibrary website, 
+     but with "dummy controller" functions (these are skeleton controller functions that just return a 
+     "not implemented" message when a page is accessed).
+
+    The next step is to provide proper implementations for the pages that display our library information
+     (we'll look at implementing pages featuring forms to create, update, or delete information in later articles). 
+     This includes updating the controller functions to fetch records using our models and defining templates 
+     to display this information to users.
+
+    Primero vamos a comenzar con un resumen / primer topic explicando cómo manegar operaciones asyncronas 
+    en el controlador y cómo escribir templates usando PUG. Luego proveeremos implementación por 
+    cada una de nuestras páginas principales de "solo lectura" con una breve explicación 
+    de cualquier función nueva o especial que utilicen
+
+    Al final de este articulo, tu deberias tener un buen entendimiento de final al final sobre como las rutas, funciones
+    asincronicas, vistas y modelos funcionan en practica.
+
+    ================= asynchronous flow control using async asincrono 
+    Esto lo voy a detallar en el archivo.txt que está ../asynchronus flow control using async.txt 
+    {
+        El codigo de los controller para algunos de nuestras paginas de LocalLibrery dependeran de el resultado
+        de multiples asynchronous request, los cuales requeriran de correr a la vez en una determinada orden en paralelo. 
+        Para administrar el control de flujo y mostrar páginas cuando tengamos toda la información 
+        requerida disponible, usaremos el popular node async modulo.
+
+        Note: hay un numero de otras formas para manejar el comportamiento asincronico y el control de
+        flujo en javascript, incluyendo funciones de lenguaje JavaScript relativamente recientes como Promises.
+
+        async tiene un montón de metodos útiles ( chequea la documentación https://caolan.github.io/async/v3/docs.html ).
+        Algunos e las más importantes son:
+
+        - async.parallel() Ejecuta cualquier operaciones que deberia ser realizada en paralelo
+        - async.series() para cuando necesitamos asegurar que la operaciones asincronica es realizada en series
+        - async.waterfall() para operaciones que deberian correr en series, con cada operacion dependiendo
+        de un resultado de procedentes operaciones
+
+        === ¿Por qué es este necesario?
+        Varios de los metodos que usamos en Express son asincronicos - usted especifica una operación para realizar, 
+        pasando una callback. El metodo retorna inmediatamente, y la callback es invocada cuando la request operation es
+        completada. Por la convencion en Express, las funciones callback pasan un valor de error en el primer
+        parametro ( or null si es correcto) y el resultado de la funcion (if there are any) como the second parameter.
+        A esto se refiere al utilizar la conexión de la basa de datos, básicamente necesita una forma de manejar los
+        errores y los resultados.
+
+        If a controller only needs to perform one asynchronous operation to get the information required to render 
+        a page then the implementation is easy—we render the template in the callback. The code fragment below
+        shows this for a function that renders the count of a model SomeModel (using the Mongoose countDocuments 
+        method):
+
+        {
+            exports.some_model_count = function (req, res, next) {
+            SomeModel.countDocuments(
+                { a_model_field: "match_value" },
+                function (err, count) {
+                // Do something if there is an err.
+                // …
+
+                // On success, render the result by passing count into the render function (here, as the variable 'data').
+                res.render("the_template", { data: count });
+                }
+            );
+            };
+
+        }
+
+
+        What if you need to make multiple asynchronous queries, and you can't render the page until all the 
+        operations have completed? A naive implementation could "daisy chain" the requests, kicking off 
+        subsequent requests in the callback of a previous request, and rendering the response in the final callback.
+         The problem with this approach is that our requests would have to be run in series, even though 
+         it might be more efficient to run them in parallel. This could also result in complicated nested code, 
+         commonly referred to as callback hell.
+
+        A much better solution would be to execute all the requests in parallel and 
+        then have a single callback that executes when all of the queries have completed. 
+        This is the sort of flow operation that the Async module makes easy!
+
+        ====  Asynchronous operations in parallel
+        El metodo async.parallel() es usado para correr multiples operaciones asincronicas en paralelo.
+
+        The first argument to async.parallel() is a collection of the asynchronous functions to run 
+        (an array, object or other iterable). Each function is passed a callback(err, result) which it
+         must call on completion with an error err (which can be null) and an optional results value.
+
+         El segundo argumento opcional es una callback la cual correra cuando todas las funciones del primer 
+         argumento esten completadas. El callback es invocado con un argumento de error y el
+         resultado de la colección puede contener el resultado de las operaciones asincronas individuales. El
+         resultado de la colección es del mismo tipo que el primer argumento (ej, si vos pasaste un array de funciones
+         asincronas, el callback final invocará un array de resultados). Si cualquiera de las funciones 
+         paralelas reportan un error, el callback es invocado prematuramente (con un error value)
+
+         El ejemplo de abajo muestra como esto trabaja cuando le pasamos un objeto como el primer argumento. Como Puedes
+         ver, el resultado esta retornando un objeto con los mimos properry name como la función original que fueron pasadas.
+
+         {
+            async.parallel(
+            {
+                 one(callback) {
+                /* … */
+                },
+                two(callback) {
+                /* … */
+                },
+                // …
+                 something_else(callback) {
+                /* … */
+                },
+            },
+            // optional callback
+            function (err, results) {
+                // 'results' is now equal to: {one: 1, two: 2, …, something_else: some_value}
+            }
+            );
+
+         }
+
+        If you instead pass an array of functions as the first argument, the results will be an array 
+        (the array order results will match the original order that the functions were declared—not the 
+        order in which they completed).
+
+
+        ====  Asynchronous operations in series
+        El metodo async.series() es usado para correr multiples operaciones asincronas en secuencia, cuando
+        la funcion subsecuente no depende del output de funciones anteriores. De declara esencialmente y se 
+        comporta de la misma manera que async.parallel().
+
+        {
+            async.series(
+            {
+                one(callback) {
+                // …
+                },
+                two(callback) {
+                // …
+                },
+                // …
+                something_else(callback) {
+                // …
+                },
+            },
+            // optional callback after the last asynchronous function completes.
+            function (err, results) {
+                // 'results' is now equal to: {one: 1, two: 2, /* …, */ something_else: some_value}
+            }
+            );
+
+        }
+
+        Nota: La especificación del idioma ECMAScript establece que el orden de enumeración de un objeto no está 
+        definido, por lo que es posible que las funciones no se llamen en el mismo orden en que las especifica 
+        en todas las plataformas. Si el orden es realmente importante, debe pasar una matriz en lugar de un 
+        objeto, como se muestra a continuación.
+
+        {
+            async.series(
+            [
+                function (callback) {
+                // do some stuff …
+                callback(null, "one");
+                },
+                function (callback) {
+                // do some more stuff …
+                callback(null, "two");
+                },
+            ],
+            // optional callback
+            function (err, results) {
+                // results is now equal to ['one', 'two']
+            }
+            );
+        }
+
+        ======== Operaciones asincronincas dependientes en series 
+        El metodo async.waterfall() es usado para correr multiples operaciones asincronas en secuencia
+        cuando una operacion depende de un resultado de una operación previa.
+
+        El callback invocado de cada funcion asincronica contiene contiene null como el primer argumento
+        y da como resultado en argumentos subsecuentes. Cada función en la serie toma el resultado de su callback 
+        previa como el primer parametro, y luego una función callback. CUnado todas las operaciones son completadas,
+        el callback final es invocado con el resultado de la última operación. La forma en la que esto trabaja
+        es mas clara cuando consideras el codigo de debajo (este ejemplo es de la focumentación de async)
+
+        {
+            async.waterfall(
+            [
+                function (callback) {
+                callback(null, "one", "two");
+                },
+                function (arg1, arg2, callback) {
+                // arg1 now equals 'one' and arg2 now equals 'two'
+                callback(null, "three");
+                },
+                function (arg1, callback) {
+                // arg1 now equals 'three'
+                callback(null, "done");
+                },
+            ],
+            function (err, result) {
+                // result now equals 'done'
+            }
+            );
+
+        }
+
+        La diferencia entre el asynchronous de series y el dependent asynchronus series es que el segundo
+        toma los resultados de los callbacks anteriores.
+
+        Para instalar el modulo sólo tenes que pondremos
+        npm install async
+    }
+
+    ====================== Template primer
+    Una template es un atchivo de texto que define una estructura o el diseño (layout) de un archivo output, con placeholder
+    usados para repsentear donde la data será inserdafa cuando el templeate es renderizado (in Express, las templates
+    son referidas como views).
+
+    ==== Express template choices
+    Express es usado con varios template rendering engines difernetes. En este tutorial usaremos PUG (anteriormente conocido como Jade)
+    para nuestras templates. Este es el lenguaje de templates más conocido de Node, y se describe a si mismo como 
+    "limpio, sencible a espacios en blanco sintaxts para escribir HTML y con una gran influencia de Haml.
+
+    Diferentes elnguajes usan diferentes enfoques para definir vistas y hacer placehorder para la data - algunos usan
+    HTML para definir el diseño mientras otros usan un diferente formate de margen el cual puede ser 
+    transpilado a HTML. Pug es del seugndo tipo, este usa una representación de HTML donde la primera palabra en cualquier
+    linea usualmente represeta un HTML element, y la identación en subsecuentes lineas
+    es usado para representar una anidacion (hijos). El resultado de la definición de la pag se traslada directamente a HTML,
+    pero es más consio y posiblemente más facil de leer.
+
+    Note: La desventaja (downside) de usar pug es que es sensible a la identación y a los espacios en blanco ( si añades
+    un espacio extra en el espacio equivocado tu puedes obtener un codigo de error inutil). Una vez tu tienes tus templates
+    en lugar, a su vez, estos son muy faciles de leer y mantener.
+
+    ======== Template configuration
+    The LocalLibrary fue configuarada para usar PUG cuando fue creado el esqueleto del sitio web. Tu deberías
+    ver el modulo pug incluido en tu dependencia en tu website's package.json file, y la iguiente configuracion en app.js file.
+    La configuración nos dirá que usaremos pug como una view engine, y esto le dirá a Express que busque templeates in view subdirectory.
+
+    {
+        // View engine setup
+    app.set("views", path.join(__dirname, "views"));
+    app.set("view engine", "pug");
+
+    }
+
+    If you look in the views directory you will see the .pug files for the project's 
+    default views. These include the view for the home page (index.pug) and base template (layout.pug) that we will need to replace with our own content.
+        /express-locallibrary-tutorial  //the project root
+        /views
+        error.pug
+        index.pug
+        layout.pug
+
+    ============ Template syntax
+
+    https://pugjs.org/language/plain-text.html
+    El ejemplo de archivo template de abajo muestra (show off) muchas de las características más útiles de Pug's.
+
+    The first thing to notice is that the file maps the structure of a typical HTML file, with the first word in (almost)
+    every line being an HTML element, and indentation being used to indicate nested elements. So for example, the body 
+    element is inside an html element, and paragraph elements (p) are within the body element, etc. Non-nested elements
+    (e.g. individual paragraphs) are on separate lines.
+    {
+        doctype html
+    html(lang="en")
+    head
+        title= title
+        script(type='text/javascript').
+    body
+        h1= title
+
+        p This is a line with #[em some emphasis] and #[strong strong text] markup.
+        p This line has un-escaped data: !{'<em> is emphasized</em>'} and escaped data: #{'<em> is not emphasized</em>'}.
+        | This line follows on.
+        p= 'Evaluated and <em>escaped expression</em>:' + title
+
+        <!-- You can add HTML comments directly -->
+        // You can add single line JavaScript comments and they are generated to HTML comments
+        //- Introducing a single line JavaScript comment with "//-" ensures the comment isn't rendered to HTML
+
+        p A line with a link
+        a(href='/catalog/authors') Some link text
+        |  and some extra text.
+
+        #container.col
+        if title
+            p A variable named "title" exists.
+        else
+            p A variable named "title" does not exist.
+        p.
+            Pug is a terse and simple template language with a
+            strong focus on performance and powerful features.
+
+        h2 Generate a list
+
+        ul
+        each val in [1, 2, 3, 4, 5]
+            li= val
+
+    }
+
+    Los elemntos atributos  (atributos a secas xdd) son definidos con parentessis después de sus elemento asociado. 
+    Dentro de los paréntesis, los atributos se definen en listas separadas por comas o espacios en blanco de los 
+    pares de nombres de atributos y valores de atributos, por ejemplo:
+    {
+        script(type='text/javascript'), link(rel='stylesheet', href='/stylesheets/style.css')
+        meta(name='viewport' content='width=device-width initial-scale=1')
+    }
+
+    Si la etiqueta esta seguida por un signo de igual (=), el siguiente texto es tratado como una expresión html.
+    {
+        h1= title
+        p= 'Evaluated and <em>escaped expression</em>:' + title
+
+    }
+    Si no tiene un signo de igual, este contenido es tratado como n texto explicativo. Dentro de este podes
+    aplicar escaped y unescaped data usando #{} and !{} syntaxis respectivamente, como mostramos abajo.
+    {
+        p This is a line with #[em some emphasis] and #[strong strong text] markup.
+        p This line has an un-escaped string: !{'<em> is emphasized</em>'}, an escaped string: #{'<em> is not emphasized</em>'}, and escaped variables: #{title}.
+ 
+    }
+
+
+    Nota: casi siempre querrá escapar de los datos de los usuarios (a través de la sintaxis #{}). Los datos en los 
+    que se puede confiar (por ejemplo, recuentos de registros generados, etc.) se pueden mostrar sin escapar de 
+    los valores.
+
+    Tu también puedes usar ('|') para comenzar una linea indicando "texto plano". El texto plano es, cualquier
+    coigo o texto que debería ir, sin procesar, directamtne a renderizarse como HTML. Estos son útiles en diferentes situaciones.
+    {
+        a(href='http://someurl/') Link text
+        | Plain text
+
+    }
+
+    Pugs te permite realizar conficionales utilizando if, else, else if y unless, for ejemplo: 
+    {
+        if title
+            p A variable named "title" exists
+        else
+            p A variable named "title" does not exist
+
+    }
+
+    Tambien puede hacer iteraciones utilizando each.in o while syntax.  In the code fragment below we've 
+    looped through an array to display a list of variables (note the use of the 'li=' to evaluate the 
+    "val" as a variable below. The value you iterate across can also be passed into the template as a 
+    variable!
+
+    {
+        ul
+            each val in [1, 2, 3, 4, 5]
+        li= val
+
+    }
+
+    La syntaxis también soporta comentarios ( que seran renderizados en el output o no, como decis)
+    creando bloques reusables de codigo, testamentos de cado y otras características. Para más inforamción,
+    poder ir a https://pugjs.org/api/getting-started.html
+
+    ==== Extending templates
+    Al rededor del sitio, es usual que todas las paginas tgengan una estructura en común, incluyendo un standar de HTML 
+    para el head, footer, navigaton,etc. 
+
+    En lugar de (rahter than ) forzar a los desarrolladores a duplicar este "modelo" en cada página,
+    pugs permite declarar una base de templeats y extenderlo, reemplazando sólo las partes
+    que son diferentes para cada pagina específica.
+
+    For ejemplo, la base del template layout.pug creada en el esqueleto del proyecto es como esta:
+    {
+        doctype html
+        html
+        head
+            title= title
+            link(rel='stylesheet', href='/stylesheets/style.css')
+        body
+            block content
+
+    }
+    La etiqueta block es usada para marcar secciones de contenido que tal vez reemplacemos en derivadas templeates(si 
+    el blockno se redefine, se usa su implementación en la clase base)
+
+    El default index.pug(creado en nuestro projecto) muestra como nosotros anulamos la base del template.
+    La etiqueta extends tag identifica una base de template que utilizaremos, y luego usamos block section_name
+    para inicar el nuevo contenido en la sección que será anulado.
+
+    {
+        extends layout
+
+        block content
+        h1= title
+        p Welcome to #{title}
+
+    }
+
+    ================== LocalLibrary base template
+    Ahora vamos a entender como se extienden las template sutilziando PUG, vamos a crear una base de    
+    template para nuestro projecto. Este tendrá una sidebar con links de las paginas que vamos a crear a lo largo 
+    del los articulos del tutuorial (ej desplegando y creando libros, generos, autores, etc) y el contenido main 
+    sera invalidado en cada una de nuestras paginas inividuales.
+
+    Abrimos views/layouts.pug y reemplazamos el contenido existente por el código de abajo: 
+    {
+
+        doctype html
+        html(lang='en')
+        head
+            title= title
+            meta(charset='utf-8')
+            meta(name='viewport', content='width=device-width, initial-scale=1')
+            link(rel="stylesheet", href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css", integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z", crossorigin="anonymous")
+            script(src="https://code.jquery.com/jquery-3.5.1.slim.min.js", integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj", crossorigin="anonymous")
+            script(src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js", integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV", crossorigin="anonymous")
+            link(rel='stylesheet', href='/stylesheets/style.css')
+        body
+            div(class='container-fluid')
+            div(class='row')
+                div(class='col-sm-2')
+                block sidebar
+                    ul(class='sidebar-nav')
+                    li
+                        a(href='/catalog') Home
+                    li
+                        a(href='/catalog/books') All books
+                    li
+                        a(href='/catalog/authors') All authors
+                    li
+                        a(href='/catalog/genres') All genres
+                    li
+                        a(href='/catalog/bookinstances') All book-instances
+                    li
+                        hr
+                    li
+                        a(href='/catalog/author/create') Create new author
+                    li
+                        a(href='/catalog/genre/create') Create new genre
+                    li
+                        a(href='/catalog/book/create') Create new book
+                    li
+                        a(href='/catalog/bookinstance/create') Create new book instance (copy)
+
+                div(class='col-sm-10')
+                block content
+
+    }
+
+    La templeates usa (e inclute) JavaScript y CSS de bootstrap para mejorar ( impove ) la vista y 
+    la presentación de la página html. Usando bootstrap o otro clent-side ( lado del cliente ) web framework
+    es un camino rapido para crear una pagina atractiva que tiene una buena escala en diferentes navegadores,
+    y tambien nos permite tratar con la presentacion de la pagina sin tener que entrar dentro
+    de ningun detalle, nosotros sólo queremos centrarnos en el server-side (espacio del servidor) en este código
+
+    La base de datos hace referencia a un esstilo css local que provee
+    un poco de información adicional de css, este en public/stylesheets/style.css
+
+    {
+        .sidebar-nav {
+        margin-top: 20px;
+        padding: 0;
+        list-style: none;
+        }
+
+    }
+
+    Ahora tenemos una pagina con una sidebar. En la sig sección la usaremos para definir paginas individuales
+
+    =================== Home Page
+    The first page we'll create will be the website home page, which is accessible from either the site ('/') 
+    or catalog (catalog/) root. This will display some static text describing the site, along with dynamically
+     calculated "counts" of different record types in the database.
+
+    We've already created a route for the home page. In order to complete the page we need to update our controller 
+    function to fetch "counts" of records from the database, and create a view (template) that we can use to render the page.
+
+    ===== Route
+    Creamos nuestro index en tutoriales previos. Para recordar, todas las funciones de rutas estan definidas en routes/catalog
+
+    {
+        // GET catalog home page.
+        router.get("/", book_controller.index); //This actually maps to /catalog/ because we import the route with a /catalog prefix
+
+    }
+
+    Donde el callback llama a la función (book_controller.index) el cual es definido en /controller/bookController.js
+    {
+        exports.index = (req, res, next) => {
+        res.send("NOT IMPLEMENTED: Site Home Page");
+        };
+
+    }
+    En este controlador vamos a extender la infroacmión de nuestro modelo y la renderizaremos utilizando la view
+
+
+    ==== Controller
+    The index controller function needs to fetch information about how many Book, BookInstance, available BookInstance,
+    Author, and Genre records we have in the database, render this data in a template to create an HTML page, 
+    and then return it in an HTTP response.
+
+    {
+        Note: We use the countDocuments() method to get the number of instances of each model. This is called on a model,
+        with an optional set of conditions to match against in the first argument, and a callback in the second argument 
+        (as discussed in Using a Database (with Mongoose), and you can also return a Query and then execute it with a 
+        callback later). The callback will be invoked when the database returns the count, with an error value as the
+        first parameter (or null) and the count of documents as the second parameter (or null if there was an error) .
+
+        {
+            SomeModel.countDocuments({ a_model_field: "match_value" }, (err, count) => {
+            // Do something if there is an err
+            // Do something with the count if there was no error
+            });
+
+        }
+    }
+    
+    Abrimos /controllers/bookController.js. Cerca del top de nuestro archivo exportamos la función index
+    {
+        const Book = require("../models/book");
+
+        exports.index = (req, res, next) => {
+        res.send("NOT IMPLEMENTED: Site Home Page");
+        };
+    }
+
+    y Ahora remplazamos todo el codigo de arriba con el siguiente fragmento. Lo primero es importart (require()) todos 
+    los modelos. Los encesitamos porque vamos a usarlos para contar los documentos. También importanmos
+    el modulo async (como discutimos previamente en Asynchronous flow control using async)
+
+    {
+        const Book = require("../models/book");
+        const Author = require("../models/author");
+        const Genre = require("../models/genre");
+        const BookInstance = require("../models/bookinstance");
+
+        const async = require("async");
+
+        exports.index = (req, res) => {
+        async.parallel(
+            {
+            book_count(callback) {
+                Book.countDocuments({}, callback); // Pass an empty object as match condition to find all documents of this collection
+            },
+            book_instance_count(callback) {
+                BookInstance.countDocuments({}, callback);
+            },
+            book_instance_available_count(callback) {
+                BookInstance.countDocuments({ status: "Available" }, callback);
+            },
+            author_count(callback) {
+                Author.countDocuments({}, callback);
+            },
+            genre_count(callback) {
+                Genre.countDocuments({}, callback);
+            },
+            },
+            (err, results) => {
+            res.render("index", {
+                title: "Local Library Home",
+                error: err,
+                data: results,
+            });
+            }
+        );
+        };
+
+    }
+
+    Al método async.parallel() se le pasa un objeto con funciones para obtener los recuentos de cada 
+    uno de nuestros modelos. Todas estas funciones se inician al mismo tiempo. Cuando todos 
+    han completado, se invoca la devolución de llamada final con los recuentos en el parámetro 
+    de resultados (o un error).
+
+    Si todo estrá bien, el callback del segundo parametro se ejecuta , especificando la vista llamada "Index"
+    y un objeto que contiene la data que sera insertada dentro de este ( este incluyeu un objeto de resultado que
+    contiene nuestras cuentas del modelo). La data es suministrada ( supplied ) como pares clave-valor, y puede ser
+    accesible en nuestra templete utilizando las keys.
+
+    Nota: La función de devolución de llamada de async.parallel() anterior es un poco inusual en 
+    el sentido de que representamos la página haya o no un error (normalmente, puede usar una ruta
+     de ejecución separada para manejar la visualización de errores). Tipo renderizas otra template
+     para manejar estos errores.
+
+    ===== View
+    Abrimos /views/layouts/index.pug y reemplazamos el contenido con el texto de debajo
+    {
+        extends layout
+
+        block content
+        h1= title
+        p Welcome to #[em LocalLibrary], a very basic Express website developed as a tutorial example on the Mozilla Developer Network.
+
+        h1 Dynamic content
+
+        if error
+            p Error getting dynamic content.
+        else
+            p The library has the following record counts:
+
+            ul
+            li #[strong Books:] !{data.book_count} // esto podría ser un b, no necesitariamente strong, basicamente lo
+            que hace #[es el evitar pasar de linea, es como una linea dentro de otra, ya que recordemos, cada etiqueta se usa en una linea]
+            li #[strong Copies:] !{data.book_instance_count}
+            li #[strong Copies available:] !{data.book_instance_available_count} // Y esto es para poner la data noma,tranqui
+            li #[strong Authors:] !{data.author_count}
+            li #[strong Genres:] !{data.genre_count}
+
+    }
+
+    La vista es sencilla (straightforward - derecha hacia adelante). Extenedemos la layout.pug, primordiando el block 
+    llamado "content". The first h1 heading will be the escaped text for the title variable that was passed into 
+    the render() function—note the use of the 'h1=' so that the following text is treated as a 
+    JavaScript expression. We then include a paragraph introducing the LocalLibrary.
+
+    Under the Dynamic content heading we check whether the error variable passed in from the render() 
+    function has been defined. If so, we note the error. If not, we get and list the number of copies 
+    of each model from the data variable
+
+    Note: We didn't escape the count values (i.e. we used the !{} syntax) because the count values are calculated. 
+    If the information was supplied by end-users then we'd escape the variable for display.
+
+
+
+
+]
