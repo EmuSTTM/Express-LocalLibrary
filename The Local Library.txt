@@ -1790,10 +1790,411 @@ https://developer.mozilla.org/en-US/docs/Learn/Server-side/Express_Nodejs/Displa
     function has been defined. If so, we note the error. If not, we get and list the number of copies 
     of each model from the data variable
 
-    Note: We didn't escape the count values (i.e. we used the !{} syntax) because the count values are calculated. 
-    If the information was supplied by end-users then we'd escape the variable for display.
+    Nota: No escapamos de los valores de conteo (es decir, usamos la sintaxis !{}) porque se calculan 
+    los valores de conteo. Si la información fue proporcionada por los usuarios finales, escaparíamos 
+    de la variable para mostrarla.
+
+
+    ====================== Book list Page
+    Ahora vamos a implementar nuestra llist page. Esta pagina necesita desplegar una lista de todos los libros en
+    la base de datos al rededor de su author, con cada titulo siendo un hyperlink asociado a los book detail page.
+
+    ==== Controller
+    The book list controller function needs to get a list of all Book objects in the database, sort them, 
+    and then pass these to the template for rendering.
+
+    Open /controllers/bookController.js. Find the exported book_list() controller method and replace it 
+    with the following code.
+
+    {
+        // Display list of all Books.
+        exports.book_list = function (req, res, next) {
+        Book.find({}, "title author")
+            .sort({ title: 1 })
+            .populate("author")
+            .exec(function (err, list_books) {
+            if (err) {
+                return next(err);
+            }
+            //Successful, so render
+            res.render("book_list", { title: "Book List", book_list: list_books });
+            });
+        };
+
+    }
+
+    El metodo utilizando en este modelo find() function devuelve todos los Book object, seleccionando 
+    para devolver sólo title and author ya que nosotros no necesitamos otros archivos (it will also return the
+    _id and virtual fiels) y entonces ordena (sorts) los resultados con el titulo alfabeticamente usando el metodo sort().
+    Aqui nosotros llamamdo populated() en Libro, especialmente en el apartado de author - este reemplazará lo almacenado en
+    author id con todos los detalles del author.
+
+    sobre el existo, el callback pasará a una peticion para renderizar book_list.pug template, pasando el titulo
+    y la lista de libros (lista de libros con autores) como variables
+
+    === VIEW 
+    Por lo que viendo lo de antes, creamos views/book_list.pug y copiamos el texto de debajo
+
+    {
+        extends layout
+
+        block content
+        h1= title
+
+        ul
+            each book in book_list
+            li
+                a(href=book.url) #{book.title}
+                |  (#{book.author.name})
+
+            else
+            li There are no books.
+
+    }
+
+    The view extends the layout.pug base template and overrides the block named 'content'. 
+    It displays the title we passed in from the controller (via the render() method) and iterates 
+    through the book_list variable using the each-in-else syntax. A list item is created for each 
+    book displaying the book title as a link to the book's detail page followed by the author name. 
+    If there are no books in the book_list then the else clause is executed, and displays the text 
+    'There are no books'.
+
+    {
+        Note: We use book.url to provide the link to the detail record for each book (we've implemented 
+        this route, but not the page yet). This is a virtual property of the Book model which uses 
+        the model instance's _id field to produce a unique URL path.
+    }
+
+    Of interest here is that each book is defined as two lines, using 
+    the pipe for the second line. This approach is needed because if the 
+    author name were on the previous line then it would be part of the hyperlink.
+
+    ========== Bookinstance list page
+    Ahora vamos a implementar nuestra list de todas las copias de los libros (bookinstance) en la libreria. Esta pagina
+    necesita incluir el titulo del libro, asociado a cada BookInstance ( linkeando esto a su pagina de detalles) a lo
+    largo con otra información en bookinstance model, incluyendo status, imprintm y la id unica de cada copia. 
+    The unique id text deberia estar asociadao con la BookInstance detail page.
+
+    === Controller
+    The bookInstance list controller funcion necesito obtener una lsita de todas las book instances, populando
+    la información asociada al libro, y esta pasa una lista a la tempalte para renderizarlo.
+
+    Abrimos /controllers/bookinstanceController.js. Y rellenamos la exportación bookinstance_list() controlador metodo y 
+    reemplazamos esto con el siguiente código: 
+
+    {
+        // Display list of all BookInstances.
+        exports.bookinstance_list = function (req, res, next) {
+        BookInstance.find()
+            .populate("book")
+            .exec(function (err, list_bookinstances) {
+            if (err) {
+                return next(err);
+            }
+            // Successful, so render
+            res.render("bookinstance_list", {
+                title: "Book Instance List",
+                bookinstance_list: list_bookinstances,
+            });
+            });
+        };
+
+    }
+    El metodo usa find() function para retornar todas las bookInstances. luego conecta en cadena una 
+    llamada a populate() con el campo de libro; esto reemplazará la identificación del libro almacenada 
+    para cada BookInstance con un documento de libro completo.
+
+    On success, the callback passed to the query renders the bookinstance_list(.pug) 
+    template, passing the title and bookinstance_list as variables.
+
+    ==== VIEW 
+    Creamos /Views/bookinstance_list.pug y copiamos el texto de abajo
+    {
+        extends layout
+
+        block content
+        h1= title
+
+        ul
+            each val in bookinstance_list
+            li
+                a(href=val.url) #{val.book.title} : #{val.imprint} -
+                if val.status=='Available'
+                span.text-success #{val.status}
+                else if val.status=='Maintenance'
+                span.text-danger #{val.status}
+                else
+                span.text-warning #{val.status}
+                if val.status!='Available'
+                span  (Due: #{val.due_back} )
+
+            else
+            li There are no book copies in this library.
+
+    }
+
+    Esta vista es casi lo mismo que las otras. Esta se extiende del layout, teemplazando content block, 
+    despliega un titulo pasado por el controlador, e itera a travez de todas las copias de los libros 
+    en bookInstance_list. Para cada copia el despliega su status (con color ) y si el libro no esta
+    disponible, este returna el dato, de cuando volverá. Una nueva característica es introducida- podemosusar una 
+    identación con un punto ( . ) luego de la etiqueta para asignar una clase. Entonces span.text-success puede ser
+    compilado com <span class="text-success">, este también podría ser escrico como span(class="text-succes")
+
+
+    ========= DATE FORMATTTING USING LUXON
+    El renderizado po defecto de los dates de las bookinsntaces es muy feo: 
+    " (Due: Sat Dec 31 2022 15:17:05 GMT-0300 (hora estándar de Argentina) )". 
+    En esta sección vamos a ver como puedes actualizar bookinstance list page de la sección previa
+    para preentar due_Date field en un formato más amigable: Dec 31th, 2022.
+
+    Para accercarse ( approach ) usaremos para crear una propiedad virtual en nuestro modelo de bookinstance, que nos
+    devolverá la fecha formateada :D . Haremos que el formato actual cambie usando luxon, una poderosa, moderna 
+    y amigable libreria para pasar, validar manipular, formatear y localizar datos.
+
+    Nota: es posible usar luxon para formatear las string directamente en nuestras templates de pug, o 
+    podemos formatear las string de varioas otras formas. Utilizando una propiedad virtual, nos permite
+    obtener esa data formateada de exactamente la misma forma en la que obtenemos due_date actualmente.
+
+    Note: este tutorial previamente usó moment library para formatear la libreria. Nos mudamos a luxon porque
+    moment se ha declarado "legado" (legacy). Luxon es uno de los moment project0s main recommendations para
+    una nueva libreria alternativa.
+
+    ==== Install Luxon
+    Ponemos el siguiente comando en la terminar del proyecto:
+    npm install luxon
+
+    ==== Creamos una propiedad virtual
+    1. abrimos ./models/bookinstance.js
+    2. en la parte de arriba de la pagina, importamos luxon.
+
+        const { dateTime } = require("luxon");
+
+    Añadimos la propiedad virtual de due_back_formated justo después de la propiedad URL
+    {
+        BookInstanceSchema.virtual("due_back_formatted").get(function () {
+        return DateTime.fromJSDate(this.due_back).toLocaleString(DateTime.DATE_MED);
+        });
+
+    }
+
+    Note: Luxon puede importar string de varios formatos y exportar ambos predefinidos y free.form formats.
+    En este caso nosotros usamos formJSDate() para importar un dato string de js Y toLocalSstring() para
+    lanzar el dato en date_med formato en ingles. Oct 6th,2022. Para más información acerca de los formates y
+    los datos de string, mirar la documentación de string en: https://github.com/moment/luxon/blob/master/docs/formatting.md#formatting
+
+    == Update the view
+    Abrimos /view/bookinstance_list.pug y reemplazamos due_back por due_back_formatted 
+    {
+        if val.status != 'Available'
+        //span  (Due: #{val.due_back} )
+        span  (Due: #{val.due_back_formatted} )
+
+    }
+
+    ======================== Author list page and Genre list page Challenge
+    The author list page needs to displaya a list of all authors in the database, witheach author
+    name linked to its associated author detail page. The date of birth and date of death should be listed
+    after the name on the same line.
+
+    === Controller
+    The author list controller function needs to get a list of all Author instances, 
+    and then pass these to the template for rendering.
+
+    Open /controllers/authorController.js. Find the exported author_list() controller
+    method near the top of the file and replace it with the following code.
+
+    {
+            // Display list of all Authors.
+        exports.author_list = function (req, res, next) {
+        Author.find()
+            .sort([["family_name", "ascending"]])
+            .exec(function (err, list_authors) {
+            if (err) {
+                return next(err);
+            }
+            //Successful, so render
+            res.render("author_list", {
+                title: "Author List",
+                author_list: list_authors,
+            });
+            });
+        };
+
+    }
+
+    The method uses the model's find(), sort() and exec() functions to return all 
+    Author objects sorted by family_name in alphabetic order. The callback passed
+    to the exec() method is called with any errors (or null) as the first parameter,
+    or a list of all authors on success. If there is an error it calls the next middleware 
+    function with the error value, and if not it renders the author_list(.pug) template, 
+    passing the page title and the list of authors (author_list).
+
+
+    ==== VIEW
+    Creamos /views/author_list.pug y ponemos el conteido de debajo 
+    {
+        extends layout
+
+        block content
+        h1= title
+
+        ul
+            each author in author_list
+            li
+                a(href=author.url) #{author.name}
+                |  (#{author.date_of_birth} - #{author.date_of_death})
+
+            else
+                li There are no authors.
 
 
 
+    }
 
-]
+    ========== Genre list page --- challenge!
+    En esta seccion tu deberas implementar tu propia genre list page. La pagina deberia desplegar una lista
+    de todos los generos de la base de datos, con cada genero linkeado a su associated details page. 
+
+    Para esto tenemos que modificar el genre_controller, el export.genre_list con el sig codigo: 
+    {
+        // Display list of all Genre.
+        exports.genre_list = function (req, res, next) {
+        Genre.find()
+            .sort([["name", "ascending"]]) 
+            .exec(function (err, list_genre) {
+            if (err) {
+                return next(err);
+            }
+            //Successful, so render
+            res.render("genre_list", {
+                title: "Genre List",
+                genre_list: list_genre,
+            });
+        });
+        };
+
+    }
+
+    Este es practicamente lo mismo que hicimos con author
+    Luego creamos la view genre_list.pug y ponemos lo siguiente: 
+    {
+        extends layout
+
+        block content
+        h1= title
+
+        ul
+            each genre in genre_list
+            li
+                a(href=genre.url) #{genre.name}
+
+            else
+            li There are no genres.  
+    }
+
+
+    ================== Genre Detail Page
+    El genere detail pagina necesita la información en particual de cada instancia de genero, usando el
+    _id generado automáticamente. la pagina debería mostrar una lista de generos y una lista de todos los
+    libros con el género de la pag
+
+    ==== Controller
+    abrimos /Controllers/genreController.js e importamos async y el modulo book en el top del archivo
+    {
+        const Book = require("../models/book");
+        const async = require("async");
+
+    }
+
+    Rellenamos la exportación genre_details() controller method y ponemos el siguiente condigo 
+
+    {
+        // Display detail page for a specific Genre.
+        exports.genre_detail = (req, res, next) => {
+        async.parallel(
+            {
+            genre(callback) {
+                Genre.findById(req.params.id).exec(callback);
+            },
+
+            genre_books(callback) {
+                Book.find({ genre: req.params.id }).exec(callback);
+            },
+            },
+            (err, results) => {
+            if (err) {
+                return next(err);
+            }
+            if (results.genre == null) {
+                // No results.
+                const err = new Error("Genre not found");
+                err.status = 404;
+                return next(err);
+            }
+            // Successful, so render
+            res.render("genre_detail", {
+                title: "Genre Detail",
+                genre: results.genre,
+                genre_books: results.genre_books,
+            });
+            }
+        );
+        };
+
+    }
+
+    El metodo usado es async.parallel() para peticiones de genero name y es asociado con libros en paralelo, con el
+    callback renderizando la pagina cuando (if) ambas request son completadas.
+
+    El ID de la request registro es codigicadod de el final de la UTL y extraida automáticamente de la definicion
+    de ruta (genre/:id). La id es accesible dentro del controllador utilizando req.params.id. Esto es
+    usado con genre.findById() para obtener el genero en cuestion. Esto también es usado para obtener el objeto Book
+    el cual tiene un genero ID en su campo de genero: Book.find({'genre': req.params.id})
+
+
+    Note: si el genero no existe en la base de datos ( p.e si está elimindo) este finById() retornará exito pero no 
+    resultados. En este caso, nosotros podemos desplegar un "not found" page, para crear un objeto de error y pasar 
+    al siguiente middleware function en la cadena.
+    {
+        if (results.genre == null) {
+        // No results.
+        const err = new Error("Genre not found");
+        err.status = 404;
+        return next(err);
+        }
+
+    }
+    El mensaje  será propagado a trabez de nuestro codigo manejador de errores ( este fue generado cuando nosotros
+    generamos el esqueleto de la app - para más información mira: https://developer.mozilla.org/en-US/docs/Learn/Server-side/Express_Nodejs/Introduction#handling_errors)
+
+    Para renderizar la vista genre_details y que este pase variables para el titulo, genero y la lista de libros de
+    este genero (genre_books)
+
+    === VIEW
+    Creamos genre_details.pug en views y ponemos el siguiente código:
+    {
+        extends layout
+
+        block content
+
+        h1 Genre: #{genre.name}
+
+        div(style='margin-left:20px;margin-top:20px')
+
+            h4 Books
+
+            dl
+            each book in genre_books
+                dt
+                a(href=book.url) #{book.title}
+                dd #{book.summary}
+
+            else
+                p This genre has no books
+
+    }
+    Esta vista es muy similar a todas las otras templates. La principal diferencia es que esta no usa un titulo 
+    pasado en el primer encabedazo ( pero esta si es usado en la subyacente layout.pug template para asignar
+    el titulo de la página)
+
+ ]

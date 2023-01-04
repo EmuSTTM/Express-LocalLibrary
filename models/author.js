@@ -1,6 +1,7 @@
 // Primero importamos mongoose 
 const mongoose = require('mongoose');
 
+const { DateTime } = require("luxon");
 // Importamos el modelo de los Schema / Esquemas. Ver más en Mongoose Primer
 const Schema = mongoose.Schema;
 
@@ -34,6 +35,21 @@ AuthorSchema.virtual('url').get(function() {
     return `/catalog/author/${this._id}`
 
 })
+
+AuthorSchema.virtual("date_of_birth_formatted").get(function () {
+    const date_of_birth_formatted =  DateTime.fromJSDate(this.date_of_birth).toLocaleString(DateTime.DATE_MED);
+    if(date_of_birth_formatted == "Invalid DateTime") return this.date_of_birth;
+    else return date_of_birth_formatted;
+
+});
+
+AuthorSchema.virtual("date_of_death_formatted").get(function () {
+    const date_of_death_formatted =  DateTime.fromJSDate(this.date_of_death).toLocaleString(DateTime.DATE_MED);
+    if(date_of_death_formatted == "Invalid DateTime") return this.date_of_death; 
+    else return date_of_death_formatted;
+});
+
+
 
 // Exportamos el modelo
 module.exports = mongoose.model('Author', AuthorSchema)
