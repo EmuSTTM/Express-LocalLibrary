@@ -36,18 +36,16 @@ AuthorSchema.virtual('url').get(function() {
 
 })
 
-AuthorSchema.virtual("date_of_birth_formatted").get(function () {
-    const date_of_birth_formatted =  DateTime.fromJSDate(this.date_of_birth).toLocaleString(DateTime.DATE_MED);
-    if(date_of_birth_formatted == "Invalid DateTime") return this.date_of_birth;
-    else return date_of_birth_formatted;
 
+AuthorSchema.virtual("lifespan").get(function() {
+    let date_of_birth_formatted =  DateTime.fromJSDate(this.date_of_birth).toLocaleString(DateTime.DATE_MED);
+    let date_of_death_formatted =  DateTime.fromJSDate(this.date_of_death).toLocaleString(DateTime.DATE_MED);
+    if(date_of_death_formatted == "Invalid DateTime"){date_of_death_formatted = "no date of death"};
+    if(date_of_birth_formatted == "Invalid DateTime"){date_of_birth_formatted = "no date of birth"};
+    const lifespan = `${date_of_birth_formatted} - ${date_of_death_formatted}`;
+    return lifespan;
 });
 
-AuthorSchema.virtual("date_of_death_formatted").get(function () {
-    const date_of_death_formatted =  DateTime.fromJSDate(this.date_of_death).toLocaleString(DateTime.DATE_MED);
-    if(date_of_death_formatted == "Invalid DateTime") return this.date_of_death; 
-    else return date_of_death_formatted;
-});
 
 
 

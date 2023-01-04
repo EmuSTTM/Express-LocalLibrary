@@ -1,3 +1,5 @@
+   Comenzado el 29-12-22
+   
     ==== I N T R O D U C C I Ó N ====
 https://developer.mozilla.org/es/docs/Learn/Server-side/Express_Nodejs/Tutorial_local_library_website
 [
@@ -2197,4 +2199,258 @@ https://developer.mozilla.org/en-US/docs/Learn/Server-side/Express_Nodejs/Displa
     pasado en el primer encabedazo ( pero esta si es usado en la subyacente layout.pug template para asignar
     el titulo de la página)
 
- ]
+
+    Aquí hay un error que podrías obtener similar a este: 
+        Cast to ObjectId failed for value " 59347139895ea23f9430ecbb" at path "_id" for model "Genre"
+    Este es un error de mongoose vineindo de req.params.id. Para resolver este problema, primero necesitasmandar un require
+    de mongoose en genreController.js page like this 
+    
+    const mongoose = require("mongoose");
+
+    en el ejemplo utilizamos mongoose.Types.ObjectId() para convertir el id del type para poder ser usado, por ejemplo:
+
+    {
+    exports.genre_detail = (req, res, next) => {
+    const id = mongoose.Types.ObjectId(req.params.id);
+    // …
+    };
+
+    }
+
+    ================= Book Detail page
+    La pagina de detalles de libros necesita desplegar información para un libro especifico (odentificado usando
+    su campo _id generado automáticamente), a lo largo con inforamción acerca de cada copia asociada 
+    en la libreria ( bookInsntace ). Donde sea, desplegaremos el author, genre y bookInstance, estos deberían ser
+    asociados con un link a su respectiva página.
+
+
+    ===== Controller
+    Abrimos /controllers/bookController.js. Rellenamos la exporación book_detail() controller method y reemplazamos 
+    con el código de abajo: 
+    {
+                    // Display detail page for a specific book.
+            exports.book_detail = (req, res, next) => {
+            async.parallel(
+                {
+                book(callback) {
+                    Book.findById(req.params.id)
+                    .populate("author")
+                    .populate("genre")
+                    .exec(callback);
+                },
+                book_instance(callback) {
+                    BookInstance.find({ book: req.params.id }).exec(callback);
+                },
+                },
+                (err, results) => {
+                if (err) {
+                    return next(err);
+                }
+                if (results.book == null) {
+                    // No results.
+                    const err = new Error("Book not found");
+                    err.status = 404;
+                    return next(err);
+                }
+                // Successful, so render.
+                res.render("book_detail", {
+                    title: results.book.title,
+                    book: results.book,
+                    book_instances: results.book_instance,
+                });
+                }
+            );
+            };
+
+    }
+    Note: No neceistamos requerir async en y BookInstance en este paso, porque ya fue importado cuando creamos 
+    el home page controller, el index.
+
+    El methodo usado async.parallel() para encontrar Book y sus copias asociadas (bookInstances) en paralelo. 
+    El acercamiento es exactamente el mismo como describimos para el Genre detail page. Desde la clave "title"
+    la cual es usada para dar el nombre de la webpage (la cual definimos en el layout), esta vez estamos pasando
+    results.book.title mientras renderizamos la webpage.
+
+    === VIEW 
+    Creamos una /view/book_detail.pug y ponemos el texto de abajo
+    {
+        extends layout
+
+        block content
+        h1 Title: #{book.title}
+
+        p #[strong Author:]
+            a(href=book.author.url) #{book.author.name}
+        p #[strong Summary:] #{book.summary}
+        p #[strong ISBN:] #{book.isbn}
+        p #[strong Genre:]
+            each val, index in book.genre // Recordemos que el campo de genero dentro del modelo de los libros, es un array con objetos genre adentro
+
+            a(href=val.url) #{val.name}
+            if index < book.genre.length - 1
+                |,
+
+        div(style='margin-left:20px;margin-top:20px')
+            h4 Copies
+
+            each val in book_instances
+            hr
+            if val.status=='Available'
+                p.text-success #{val.status}
+            else if val.status=='Maintenance'
+                p.text-danger #{val.status}
+            else
+                p.text-warning #{val.status}
+            p #[strong Imprint:] #{val.imprint}
+            if val.status!='Available'
+                p #[strong Due back:] #{val.due_back}
+            p #[strong Id:]
+                a(href=val.url) #{val._id}
+
+            else
+            p There are no copies of this book in the library.
+
+    }
+    La lista de generos asociada con el libro es implementada en la templette como vemos abajo.
+    Esta añade una , después de cada genero asociado menos por el último.
+    {
+          p #[strong Genre:]
+        each val, index in book.genre
+        a(href=val.url) #{val.name}
+        if index < book.genre.length - 1
+            |,
+
+    }
+
+    ================ Author detail page
+    El author detail pags necesita la información acerca de cada Author especificado, identificandolo
+    utilizando su campo _id, a lo largo con una lista de todos los objetos Book asociado con el author
+
+    ==== Controller 
+    Abrimos /controllers/authorController.js
+    Añadimos las siguientes lineas en la parte de arriba del archivo e importamos async y el modulo Book (estos
+    son necesarios para nuestro author detail page)
+    {
+        const async = require("async";
+        const Book = require("../models/book");
+    }
+    Luego rellenamos la exportación de author_details con el siguiente código:
+    {
+        // Display detail page for a specific Author.
+exports.author_detail = (req, res, next) => {
+  async.parallel(
+    {
+            author(callback) {
+                Author.findById(req.params.id).exec(callback);
+            },
+            authors_books(callback) {
+                Book.find({ author: req.params.id }, "title summary").exec(callback);
+            },
+            },
+            (err, results) => {
+            if (err) {
+                // Error in API usage.
+                return next(err);
+            }
+            if (results.author == null) {
+                // No results.
+                const err = new Error("Author not found");
+                err.status = 404;
+                return next(err);
+            }
+            // Successful, so render.
+            res.render("author_detail", {
+                title: "Author Detail",
+                author: results.author,
+                author_books: results.authors_books,
+            });
+            }
+        );
+        };
+
+    }
+
+    El metodo usado es async.oarakkek() para pedir el Author y a su libro asociado en paralelo. con 
+    el ballbback de renderizan la pagina si ambas peticiones son completadas correctamente. El acercamiento
+    es exactamente el mismo para describir el genre detail page de antes.
+
+    === VIEW
+    Creamos / view/ author_detail.pug y copaimos el siguiente texto
+
+    ============ BookInstance detail page
+    The BookInstance detail page needs to display the information for each BookInstance, identified using its
+    (automatically generated) _id field value. This will include the Book name (as a link to the Book detail page) 
+    along with other information in the record.
+
+    === Controller 
+    Abrimos controllers/bookInsntaceController.js y dentro de bookinstance_Detail controller ponemos lo siguiente.
+    {
+        // Display detail page for a specific BookInstance.
+        exports.bookinstance_detail = (req, res, next) => {
+        BookInstance.findById(req.params.id)
+            .populate("book")
+            .exec((err, bookinstance) => {
+            if (err) {
+                return next(err);
+            }
+            if (bookinstance == null) {
+                // No results.
+                const err = new Error("Book copy not found");
+                err.status = 404;
+                return next(err);
+            }
+            // Successful, so render.
+            res.render("bookinstance_detail", {
+                title: `Copy: ${bookinstance.book.title}`,
+                bookinstance,
+            });
+            });
+        };
+
+    }
+
+    El metodo llama a BookInstance.findById() con la id especifica del book instance extraido de la utl, y accede
+    via una peticion del controllador con el parametro id del req params. Y este llama a populated para acceder
+    a los libros asociadoos
+
+    === VIEW
+    views/bookinstance_detail.pug
+    {
+
+    }
+
+
+    ====== Challenge
+    Tenes que agregar una propiedad virtual a todos los Date de los modelos utilizando luxon.
+    Currently most dates displayed on the site use the default JavaScript format (e.g. Tue Oct 06 2020 15:49:58 GMT+1100 
+    (AUS Eastern Daylight Time)). The challenge for this article is to improve the appearance of the date display 
+    for Author lifespan information (date of death/birth) and for BookInstance detail pages to use the format: Oct 
+    6th, 2016.
+
+    // Parece que ese formato choto lo pasa siempre sin importar cómo lo hayas hecho, porque en el ejemplo, en 
+    populated lo hicieron como: 1920-01-02
+
+    Note: You can use the same approach as we used for the Book Instance List (adding the virtual property 
+    for the lifespan to the Author model and use luxon to format the date strings).
+
+    To complete this challenge, you must:
+
+    Replace the variable due_back with due_back_formatted in the BookInstance detail page.
+    Update the Author model to add a lifespan virtual property. The lifespan should look like: date_of_birth 
+    - date_of_death, where both values have the same date format as BookInstance.due_back_formatted.
+    Use Author.lifespan in all views where you currently explicitly use date_of_birth and date_of_death.
+
+
+    ------------------- SUMMARY RESUMEN
+    Ya hemos creado todo lo "sólo lectura" de nuestra site: a home page that displays counts of instances 
+    of each of our models, and list and detail pages for our books, book instances, authors, and genres. 
+    Along the way, we've gained a lot of fundamental knowledge about controllers, managing flow control
+    when using asynchronous operations, creating views using Pug, querying the site's database using models, 
+    passing information to a view, and creating and extending templates. The challenges will also have taught 
+    readers a little about date handling using Luxon.
+
+    En nuestro proximo articulo, construiremos nuestro conocimiento (knowledge), creando formularios HTML 
+    y código de manejo de formularios para comenzar a modificar los datos almacenados por el sitio.
+
+        
+]
