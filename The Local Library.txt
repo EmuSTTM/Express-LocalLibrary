@@ -2912,6 +2912,1157 @@ Create /views/genre_form.pug and copy in the text below.
 
 }
 
+In this article
+Import validation and sanitization methods
+Controller—get route
+Controller—post route
+View
+What does it look like?
+Next steps
+Create genre form
+This sub article shows how we define our page to create Genre objects (this is a good place to start because the Genre has only one field, its name, and no dependencies). Like any other pages, we need to set up routes, controllers, and views.
+
+Import validation and sanitization methods
+To use the express-validator in our controllers we have to require the functions we want to use from the 'express-validator' module.
+
+Open /controllers/genreController.js, and add the following line at the top of the file:
+
+const { body, validationResult } = require("express-validator");
+Copy to Clipboard
+Note: This syntax allows us to use body and validationResult as the associated middleware functions, as you will see in the post route section below. It is equivalent to:
+
+const validator = require("express-validator");
+const body = validator.body;
+const validationResult = validator.validationResult;
+Copy to Clipboard
+Controller—get route
+Find the exported genre_create_get() controller method and replace it with the following code. This renders the genre_form.pug view, passing a title variable.
+
+// Display Genre create form on GET.
+exports.genre_create_get = (req, res, next) => {
+  res.render("genre_form", { title: "Create Genre" });
+};
+Copy to Clipboard
+Controller—post route
+Find the exported genre_create_post() controller method and replace it with the following code.
+
+// Handle Genre create on POST.
+exports.genre_create_post = [
+  // Validate and sanitize the name field.
+  body("name", "Genre name required").trim().isLength({ min: 1 }).escape(),
+
+  // Process request after validation and sanitization.
+  (req, res, next) => {
+    // Extract the validation errors from a request.
+    const errors = validationResult(req);
+
+    // Create a genre object with escaped and trimmed data.
+    const genre = new Genre({ name: req.body.name });
+
+    if (!errors.isEmpty()) {
+      // There are errors. Render the form again with sanitized values/error messages.
+      res.render("genre_form", {
+        title: "Create Genre",
+        genre,
+        errors: errors.array(),
+      });
+      return;
+    } else {
+      // Data from form is valid.
+      // Check if Genre with same name already exists.
+      Genre.findOne({ name: req.body.name }).exec((err, found_genre) => {
+        if (err) {
+          return next(err);
+        }
+
+        if (found_genre) {
+          // Genre exists, redirect to its detail page.
+          res.redirect(found_genre.url);
+        } else {
+          genre.save((err) => {
+            if (err) {
+              return next(err);
+            }
+            // Genre saved. Redirect to genre detail page.
+            res.redirect(genre.url);
+          });
+        }
+      });
+    }
+  },
+];
+Copy to Clipboard
+The first thing to note is that instead of being a single middleware function (with arguments (req, res, next)) the controller specifies an array of middleware functions. The array is passed to the router function and each method is called in order.
+
+Note: This approach is needed, because the validators are middleware functions.
+
+The first method in the array defines a body validator (body()) that validates and sanitizes the field. This uses trim() to remove any trailing/leading whitespace, checks that the name field is not empty, and then uses escape() to remove any dangerous HTML characters).
+
+[
+  // Validate that the name field is not empty.
+  body("name", "Genre name required").trim().isLength({ min: 1 }).escape(),
+  // …
+];
+Copy to Clipboard
+After specifying the validators we create a middleware function to extract any validation errors. We use isEmpty() to check whether there are any errors in the validation result. If there are then we render the form again, passing in our sanitized genre object and the array of error messages (errors.array()).
+
+// Process request after validation and sanitization.
+(req, res, next) => {
+  // Extract the validation errors from a request.
+  const errors = validationResult(req);
+
+  // Create a genre object with escaped and trimmed data.
+  const genre = new Genre({ name: req.body.name });
+
+  if (!errors.isEmpty()) {
+    // There are errors. Render the form again with sanitized values/error messages.
+    res.render("genre_form", {
+      title: "Create Genre",
+      genre,
+      errors: errors.array(),
+    });
+    return;
+  } else {
+    // Form data is valid.
+    // Save the result.
+    // …
+  }
+};
+Copy to Clipboard
+If the genre name data is valid then we check if a Genre with the same name already exists (as we don't want to create duplicates). If it does, we redirect to the existing genre's detail page. If not, we save the new Genre and redirect to its detail page.
+
+// Check if Genre with same name already exists.
+Genre.findOne({ name: req.body.name }).exec((err, found_genre) => {
+  if (err) {
+    return next(err);
+  }
+  if (found_genre) {
+    // Genre exists, redirect to its detail page.
+    res.redirect(found_genre.url);
+  } else {
+    genre.save((err) => {
+      if (err) {
+        return next(err);
+      }
+      // Genre saved. Redirect to genre detail page.
+      res.redirect(genre.url);
+    });
+  }
+});
+Copy to Clipboard
+This same pattern is used in all our post controllers: we run validators (with sanitizers), then check for errors and either re-render the form with error information or save the data.
+
+View
+The same view is rendered in both the GET and POST controllers/routes when we create a new Genre (and later on it is also used when we update a Genre). In the GET case the form is empty, and we just pass a title variable. In the POST case the user has previously entered invalid data—in the genre variable we pass back a sanitized version of the entered data and in the errors variable we pass back an array of error messages.
+
+res.render("genre_form", { title: "Create Genre" });
+res.render("genre_form", {
+  title: "Create Genre",
+  genre,
+  errors: errors.array(),
+});
+Copy to Clipboard
+Create /views/genre_form.pug and copy in the text below.
+
+extends layout
+
+block content
+  h1 #{title}
+
+  form(method='POST' action='')
+    div.form-group
+      label(for='name') Genre:
+      input#name.form-control(type='text', placeholder='Fantasy, Poetry etc.' name='name' value=(undefined===genre ? '' : genre.name))
+    button.btn.btn-primary(type='submit') Submit
+
+  if errors
+   ul
+    for error in errors
+     li!= error.msg
+Copy to Clipboard
+Much of this template will be familiar from our previous tutorials. First, 
+we extend the layout.pug base template and override the block named 'content'. 
+We then have a heading with the title we passed in from the controller 
+(via the render() method).
+
+Next, we have the pug code for our HTML form that uses method="POST" to send the 
+data to the server, and because the action is an empty string, will send the data 
+to the same URL as the page.
+
+The form defines a single required field of type "text" called "name". The 
+default value of the field depends on whether the genre variable is defined. 
+If called from the GET route it will be empty as this is a new form. If called 
+from a POST route it will contain the (invalid) value originally entered by the user.
+
+The last part of the page is the error code. This prints a list of errors, 
+if the error variable has been defined (in other words, this section will 
+not appear when the template is rendered on the GET route).
+
+Note: This is just one way to render the errors. You can also get the names 
+of the affected fields from the error variable, and use these to control where 
+the error messages are rendered, whether to apply custom CSS, etc.
+
+Note: Our validation uses trim() to ensure that whitespace is not accepted 
+as a genre name. We can also validate that the field is not empty on the client 
+side by adding the value required='true' to the field definition in the form:
+{
+    input#name.form-control(type='text', placeholder='Fantasy, Poetry etc.' name='name' 
+    value=(undefined===genre ? '' : genre.name), required='true' )
+}
+
+=========== Create Author Form
+First, we need to import express-validator, to use this, we need require the functions we want to use.
+
+Abrimos /controllers/authorController.js. y agregamos la siguiente linea de código en el top
+{
+const { body, validationResult } = require("express-validator");
+}
+
+====== Controller-- get route
+Rellenamos la exportació author_create_get() controller methor y lo reemplazamos con el siguiente coigo.
+{
+    // Display Author create form on GET.
+    exports.author_create_get = (req, res, next) => {
+    res.render("author_form", { title: "Create Author" });
+    };
+
+}
+
+===== Controller-- post route
+Rellenamos la exportación author_create_post() con el siguiente código 
+{
+    // Handle Author create on POST.
+    exports.author_create_post = [
+    // Validate and sanitize fields.
+    body("first_name")
+        .trim()
+        .isLength({ min: 1 })
+        .escape()
+        .withMessage("First name must be specified.")
+        .isAlphanumeric()
+        .withMessage("First name has non-alphanumeric characters."),
+    body("family_name")
+        .trim()
+        .isLength({ min: 1 })
+        .escape()/  / una cadena de validaciones con WithMessage para corroborar el error en cada cosa especificada
+        .withMessage("Family name must be specified.")
+        .isAlphanumeric()
+        .withMessage("Family name has non-alphanumeric characters."),
+    body("date_of_birth", "Invalid date of birth")
+        .optional({ checkFalsy: true })
+        .isISO8601()
+        .toDate(),
+    body("date_of_death", "Invalid date of death")  
+        .optional({ checkFalsy: true }) // Es una validación que se ejecuta sólo si el el campo está lleno 
+        .isISO8601()
+        .toDate(),
+    // Process request after validation and sanitization.
+    (req, res, next) => {
+        // Extract the validation errors from a request.
+        const errors = validationResult(req);
+
+        if (!errors.isEmpty()) {
+        // There are errors. Render form again with sanitized values/errors messages.
+        res.render("author_form", {
+            title: "Create Author",
+            author: req.body,
+            errors: errors.array(),
+        });
+        return;
+        }
+        // Data from form is valid.
+
+        // Create an Author object with escaped and trimmed data.
+        const author = new Author({
+        first_name: req.body.first_name,
+        family_name: req.body.family_name,
+        date_of_birth: req.body.date_of_birth,
+        date_of_death: req.body.date_of_death,
+        });
+        author.save((err) => {
+        if (err) {
+            return next(err);
+        }
+        // Successful - redirect to new author record.
+        res.redirect(author.url);
+        });
+    },
+    ];
+
+}
+
+Warning: Never validate names using isAlphanumeric() (as we have done above) as there are 
+many names that use other character sets. We do it here in order to demonstrate how the validator 
+is used, and how it can be daisy-chained with other validators and error reporting
+
+
+We can use the optional() function to run a subsequent validation only if a field has been entered 
+(this allows us to validate optional fields). For example, below we check that the optional date 
+of birth is an ISO8601-compliant date (the checkFalsy flag means that we'll accept either an empty 
+string or null as an empty value).
+
+====== VIEW 
+views/author_form.pug
+{
+    extends layout
+
+    block content
+    h1=title
+
+    form(method='POST' action='')
+        div.form-group
+        label(for='first_name') First Name:
+        input#first_name.form-control(type='text' placeholder='First name' name='first_name' required='true' value=(undefined===author ? '' : author.first_name) )
+        label(for='family_name') Family Name:
+        input#family_name.form-control(type='text' placeholder='Family name' name='family_name' required='true' value=(undefined===author ? '' : author.family_name))
+        div.form-group
+        label(for='date_of_birth') Date of birth:
+        input#date_of_birth.form-control(type='date' name='date_of_birth' value=(undefined===author ? '' : author.date_of_birth) )
+        label(for='date_of_death') Date of death:
+        input#date_of_death.form-control(type='date' name='date_of_death' value=(undefined===author ? '' : author.date_of_death) )
+        button.btn.btn-primary(type='submit') Submit
+    if errors
+        ul
+        for error in errors
+            li!= error.msg
+
+}
+
+Lo unico diferente comparado con el genre_form es que acá posemos un type="date", para que se ponga correctamente
+la fecha. También se podría poner un placeholder="dd/mm/yyyy" para indicar en qué formato tiene que poner la fecha
+
+
+============= Create Book FORM CRUD formulario
+This subarticle shows how to define a page/form to create Book objects. 
+This is a little more complicated than the equivalent Author or Genre pages 
+because we need to get and display available Author and Genre records in our Book form.
+
+===== Import validation and sanitzation method
+/controllers/bookController.js
+{
+    const { body, validationResult } = require("express-validator");
+}
+
+
+===0== Controller - get route
+Primero exportamos book_create_get() controller method y lo reemplazamos con el siguiente codigo
+{
+    // Display book create form on GET.
+    exports.book_create_get = (req, res, next) => {
+    // Get all authors and genres, which we can use for adding to our book.
+    async.parallel(
+        {
+        authors(callback) {
+            Author.find(callback);
+        },
+        genres(callback) {
+            Genre.find(callback);
+        },
+        },
+        (err, results) => {
+        if (err) {
+            return next(err);
+        }
+        res.render("book_form", {
+            title: "Create Book",
+            authors: results.authors,
+            genres: results.genres,
+        });
+        }
+    );
+    };
+
+
+}
+
+Esto usa el modulo async ( describido en la parte 5 del tutuorial) para tener todos los authores y generos. Estos
+son pasado para la vista de book_form.pug como ariables llamadas authors y genres (junto con la page title )
+
+========== Controller -- post route
+Primero exportamos book_create_bpost() controller method y lo reemplazamos con el siguiente codigo.
+{
+    // Handle book create on POST.
+    exports.book_create_post = [ // Primero tenemos que recoradr que routes acepta como primer parametro el path
+                                // y el segundo puede ser un array de middlewares, y esto es lo que hacemos 
+    // Convert the genre to an array.
+    (req, res, next) => { //Lo convertimos en array porque recordemos que el modelo de Books guarda un array de generos
+        if (!Array.isArray(req.body.genre)) {
+        req.body.genre =
+            typeof req.body.genre === "undefined" ? [] : [req.body.genre];
+        }
+        next();
+    },
+
+    // Validate and sanitize fields. // Realizamos las validaciones 
+    body("title", "Title must not be empty.")
+        .trim()
+        .isLength({ min: 1 })
+        .escape(),
+    body("author", "Author must not be empty.")
+        .trim()
+        .isLength({ min: 1 })
+        .escape(),
+    body("summary", "Summary must not be empty.")
+        .trim()
+        .isLength({ min: 1 })
+        .escape(),
+    body("isbn", "ISBN must not be empty").trim().isLength({ min: 1 }).escape(),
+    body("genre.*").escape(),
+
+    // Process request after validation and sanitization.
+    (req, res, next) => { 
+        // Extract the validation errors from a request.
+        const errors = validationResult(req); // Toma los resultados de antes y ve si recibe algun error
+
+        // Create a Book object with escaped and trimmed data.
+        const book = new Book({
+        title: req.body.title,
+        author: req.body.author,
+        summary: req.body.summary,
+        isbn: req.body.isbn,
+        genre: req.body.genre,
+        });
+
+        if (!errors.isEmpty()) {
+        // There are errors. Render form again with sanitized values/error messages.
+
+        // Get all authors and genres for form.
+        async.parallel(
+            {
+            authors(callback) {
+                Author.find(callback);
+            },
+            genres(callback) {
+                Genre.find(callback);
+            },
+            },
+            (err, results) => {
+            if (err) {
+                return next(err);
+            }
+
+            // Mark our selected genres as checked.
+            for (const genre of results.genres) {
+                if (book.genre.includes(genre._id)) {
+                genre.checked = "true";
+                }
+            }
+            res.render("book_form", {
+                title: "Create Book",
+                authors: results.authors,
+                genres: results.genres,
+                book,
+                errors: errors.array(),
+            });
+            }
+        );
+        return;
+        }
+
+        // Data from form is valid. Save book.
+        book.save((err) => {
+        if (err) {
+            return next(err);
+        }
+        // Successful: redirect to new book record.
+        res.redirect(book.url);
+        });
+    },
+    ];
+
+}
+
+The structure and behavior of this code is almost exactly the same as for creating a Genre or Author object. 
+First we validate and sanitize the data. If the data is invalid then we re-display the form along with 
+the data that was originally entered by the user and a list of error messages. If the data is valid, 
+we then save the new Book record and redirect the user to the book detail page.
+
+
+The main difference with respect to the other form handling code is how we sanitize the genre information. 
+The form returns an array of Genre items (while for other fields it returns a string). 
+In order to validate the information we first convert the request to an array (required for the next step)
+
+{
+    [
+    // Convert the genre to an array.
+    (req, res, next) => {
+        if (!Array.isArray(req.body.genre)) {
+        req.body.genre =
+            typeof req.body.genre === "undefined" ? [] : [req.body.genre];
+        }
+        next();
+    },
+    // …
+    ];
+
+}
+We then use a wildcard (*) in the sanitizer to individually validate each of the genre array entries. 
+The code below shows how - this translates to "sanitize every item below key genre".
+[
+  // …
+  body("genre.*").escape(),
+  // …
+];
+
+The final difference with respect to the other form handling code is that we need to pass in all existing 
+genres and authors to the form. In order to mark the genres that were checked by the user we iterate 
+through all the genres and add the checked='true' parameter to those that were in our post data 
+(as reproduced in the code fragment below).
+{
+    // Mark our selected genres as checked.
+    for (const genre of results.genres) {
+    if (book.genre.includes(genre._id)) {
+        // Current genre is selected. Set "checked" flag.
+        genre.checked = "true";
+    }
+    }
+
+}
+===== VIEW
+/views/book_form.pug y copiamos el texto de debajo 
+{
+    extends layout
+
+    block content
+    h1= title
+
+    form(method='POST' action='')
+        div.form-group
+        label(for='title') Title:
+        input#title.form-control(type='text', placeholder='Name of book' name='title' required='true' value=(undefined===book ? '' : book.title) )
+        div.form-group
+        label(for='author') Author:
+        select#author.form-control(type='select', placeholder='Select author' name='author' required='true' )
+            - authors.sort(function(a, b) {let textA = a.family_name.toUpperCase(); let textB = b.family_name.toUpperCase(); return (textA < textB) ? -1 : (textA > textB) ? 1 : 0;});
+            for author in authors
+            if book
+                option(value=author._id selected=(author._id.toString()===book.author._id.toString() ? 'selected' : false) ) #{author.name}
+            else
+                option(value=author._id) #{author.name}
+        div.form-group
+        label(for='summary') Summary:
+        textarea#summary.form-control(type='textarea', placeholder='Summary' name='summary' required='true') #{undefined===book ? '' : book.summary}
+        div.form-group
+        label(for='isbn') ISBN:
+        input#isbn.form-control(type='text', placeholder='ISBN13' name='isbn' value=(undefined===book ? '' : book.isbn) required='true')
+        div.form-group
+        label Genre:
+        div
+            for genre in genres
+            div(style='display: inline; padding-right:10px;')
+                input.checkbox-input(type='checkbox', name='genre', id=genre._id, value=genre._id, checked=genre.checked )
+                label(for=genre._id) #{genre.name}
+        button.btn.btn-primary(type='submit') Submit
+
+    if errors
+        ul
+        for error in errors
+            li!= error.msg
+
+}
+
+The view structure and behavior is almost the same as for the genre_form.pug template.
+
+The main differences are in how we implement the selection-type fields: Author and Genre.
+
+    - The set of genres are displayed as checkboxes, using the checked value we set in the 
+controller to determine whether or not the box should be selected.
+    - The set of authors are displayed as a single-selection alphabetically ordered drop-down list. 
+If the user has previously selected a book author (i.e. when fixing invalid field values 
+after initial form submission, or when updating book details) the author will be 
+re-selected when the form is displayed. Here we determine what author to select by comparing 
+the id of the current author option with the value previously entered by the user (passed in via 
+the book variable). This is highlighted above!
+
+{
+    Note: If there is an error in the submitted form, then, when the form is to be re-rendered,
+    the new book author's id and the existing books's authors ids are of type Schema.Types.ObjectId.
+    So to compare them we must convert them to strings first.
+}
+
+
+
+
+========================= Create BooKiNSTANCE FORM
+This subarticle shows how to define a page/form to create BookInstance objects. 
+This is very much like the form we used to create Book objects.
+
+======== Import validation y sanitazión methor
+en controllers/bookinstance.js importamos los sig metodos de express-validator
+
+const { body, validationResult } = require("express-validator");
+
+
+========= Controller -get route
+En el top del archivo, requerimos el Book module ( lo necesitamo porque cada BookInstance es asociado
+con un libro en particular)
+
+{
+    const Book = require("../models/book");
+}
+
+Reemplazamos bookinstance_create_get() controller method y reemplazamo con el siguiente codigo:
+{
+    // Display BookInstance create form on GET.
+    exports.bookinstance_create_get = (req, res, next) => {
+    Book.find({}, "title").exec((err, books) => {
+        if (err) {
+        return next(err);
+        }
+        // Successful, so render.
+        res.render("bookinstance_form", {
+        title: "Create BookInstance",
+        book_list: books,
+        });
+    });
+    };
+
+}
+
+El controlador obtiene un alista de todos los libros (book_list) y pasa esto a las vistas bookinstance_form.pug
+(también title)
+
+======= Controller - post route POST
+Rellenamos bookinstance_create_post() cibtrikker nethiw y lo reeplazamos con el siguiente código
+{
+    // Handle BookInstance create on POST.
+    exports.bookinstance_create_post = [
+    // Validate and sanitize fields.
+    body("book", "Book must be specified").trim().isLength({ min: 1 }).escape(),
+    body("imprint", "Imprint must be specified")
+        .trim()
+        .isLength({ min: 1 })
+        .escape(),
+    body("status").escape(),
+    body("due_back", "Invalid date")
+        .optional({ checkFalsy: true })
+        .isISO8601()
+        .toDate(),
+
+    // Process request after validation and sanitization.
+    (req, res, next) => {
+        // Extract the validation errors from a request.
+        const errors = validationResult(req);
+
+        // Create a BookInstance object with escaped and trimmed data.
+        const bookinstance = new BookInstance({
+        book: req.body.book,
+        imprint: req.body.imprint,
+        status: req.body.status,
+        due_back: req.body.due_back,
+        });
+
+        if (!errors.isEmpty()) {
+        // There are errors. Render form again with sanitized values and error messages.
+        Book.find({}, "title").exec(function (err, books) {
+            if (err) {
+            return next(err);
+            }
+            // Successful, so render.
+            res.render("bookinstance_form", {
+            title: "Create BookInstance",
+            book_list: books,
+            selected_book: bookinstance.book._id,
+            errors: errors.array(),
+            bookinstance,
+            });
+        });
+        return;
+        }
+
+        // Data from form is valid.
+        bookinstance.save((err) => {
+        if (err) {
+            return next(err);
+        }
+        // Successful: redirect to new record.
+        res.redirect(bookinstance.url);
+        });
+    },
+    ];
+
+}
+
+La estructura y el comportamiento de este codigo es el mismo como creamos nuestros otros objetos. Primero 
+validamos y sanitizamos la data. Si esta data es incalida, nosotros re mostrarmos el formuladrio
+a travez con la data que fue intentando entrar originalmente por el usuario y una lista con el mensaje de error.
+Si la data es valid, nosotros guardamos la nueva bookInsatance y redireccionamos al usuario a su detail page.
+
+==== VIEWCreamos /view/bookinstance_form.pug y copiamos el texto de abajo
+
+{
+    extends layout
+
+    block content
+    h1=title
+
+    form(method='POST' action='')
+        div.form-group
+        label(for='book') Book:
+        select#book.form-control(type='select' placeholder='Select book' name='book' required='true')
+            - book_list.sort(function(a, b) {let textA = a.title.toUpperCase(); let textB = b.title.toUpperCase(); return (textA < textB) ? -1 : (textA > textB) ? 1 : 0;}); // sort orena el documento
+            for book in book_list
+            option(value=book._id, selected=(selected_book==book._id.toString() ? 'selected' : false) ) #{book.title}
+
+        div.form-group
+        label(for='imprint') Imprint:
+        input#imprint.form-control(type='text' placeholder='Publisher and date information' name='imprint' required='true' value=(undefined===bookinstance ? '' : bookinstance.imprint))
+        div.form-group
+        label(for='due_back') Date when book available:
+        input#due_back.form-control(type='date' name='due_back' value=(undefined===bookinstance ? '' : bookinstance.due_back))
+
+        div.form-group
+        label(for='status') Status:
+        select#status.form-control(type='select' placeholder='Select status' name='status' required='true')
+            option(value='Maintenance') Maintenance
+            option(value='Available') Available
+            option(value='Loaned') Loaned
+            option(value='Reserved') Reserved
+
+        button.btn.btn-primary(type='submit') Submit
+
+    if errors
+        ul
+        for error in errors
+            li!= error.msg
+
+
+}
+La estructura y estilo es bastante parecido a book_form.pug template, entonces no la cubriremos otra vez
+
+
+
+=========================== DELETE AUTHOR FORM
+Este subarticle muestra como definir la pagina para borrar los objetos de author
+
+As discussed in the form design section, our strategy will be to only allow deletion 
+of objects that are not referenced by other objects (in this case that means we won't 
+allow an Author to be deleted if it is referenced by a Book). In terms of implementation 
+this means that the form needs to confirm that there are no associated books before the 
+author is deleted. If there are associated books, it should display them, and state
+that they must be deleted before the Author object can be deleted.
+
+============ Controller get-router delete 
+abrimos contrllers/authorController y rellenamos donde dice author_delete_get()
+{
+    // Display Author delete form on GET.
+    exports.author_delete_get = (req, res, next) => {
+    async.parallel(
+        {
+        author(callback) {
+            Author.findById(req.params.id).exec(callback);
+        },
+        authors_books(callback) {
+            Book.find({ author: req.params.id }).exec(callback);
+        },
+        },
+        (err, results) => {
+        if (err) {
+            return next(err);
+        }
+        if (results.author == null) {
+            // No results.
+            res.redirect("/catalog/authors");
+        }
+        // Successful, so render.
+        res.render("author_delete", {
+            title: "Delete Author",
+            author: results.author,
+            author_books: results.authors_books,
+        });
+        }
+    );
+    };
+
+}
+
+The controller gets the id of the Author instance to be deleted from the URL parameter (req.params.id). 
+It uses the async.parallel() method to get the author record and all associated books in parallel. 
+When both operations have completed it renders the author_delete.pug view, passing variables for the 
+title, author, and author_books.
+
+Note: If findById() returns no results the author is not in the database. In this case there is nothing 
+to delete, so we immediately render the list of all authors.
+
+  (err, results) => {
+    if (err) {
+      return next(err);
+    }
+    if (results.author == null) { // No results.
+       res.redirect('/catalog/authors');
+    }
+Copy to Clipboard
+
+============== Controller - post route
+rellenamos author_delete_post() 
+{
+    // Handle Author delete on POST.
+    exports.author_delete_post = (req, res, next) => {
+    async.parallel(
+        {
+        author(callback) {
+            Author.findById(req.body.authorid).exec(callback);
+        },
+        authors_books(callback) {
+            Book.find({ author: req.body.authorid }).exec(callback);
+        },
+        },
+        (err, results) => {
+        if (err) {
+            return next(err);
+        }
+        // Success
+        if (results.authors_books.length > 0) {
+            // Author has books. Render in same way as for GET route.
+            res.render("author_delete", {
+            title: "Delete Author",
+            author: results.author,
+            author_books: results.authors_books,
+            });
+            return;
+        }
+        // Author has no books. Delete object and redirect to the list of authors.
+        Author.findByIdAndRemove(req.body.authorid, (err) => {
+            if (err) {
+            return next(err);
+            }
+            // Success - go to author list
+            res.redirect("/catalog/authors");
+        });
+        }
+    );
+    };
+
+}
+
+First we validate that an id has been provided (this is sent via the form body parameters, 
+rather than using the version in the URL). Then we get the author and their associated 
+books in the same way as for the GET route. If there are no books then we delete the author 
+object and redirect to the list of all authors. If there are still books then we just re-render 
+the form, passing in the author and list of books to be deleted.
+
+Note: We could check if the call to findById() returns any result, and if not, immediately 
+render the list of all authors. We've left the code as it is above for brevity (it will 
+still return the list of authors if the id is not found, but this will happen after 
+findByIdAndRemove()).
+
+===== VIEW 
+Creamos /views/author_delete.pug y copiamos el texto de debajo
+{
+    extends layout
+
+    block content
+    h1 #{title}: #{author.name}
+    p= author.lifespan
+
+    if author_books.length
+
+        p #[strong Delete the following books before attempting to delete this author.]
+
+        div(style='margin-left:20px;margin-top:20px')
+
+        h4 Books
+
+        dl
+        each book in author_books
+            dt
+            a(href=book.url) #{book.title}
+            dd #{book.summary}
+
+    else
+        p Do you really want to delete this Author?
+
+        form(method='POST' action='')
+        div.form-group
+            input#authorid.form-control(type='hidden',name='authorid', required='true', value=author._id )
+
+        button.btn.btn-primary(type='submit') Delete
+
+}
+The view extends the layout template, overriding the block named content. 
+At the top it displays the author details. It then includes a conditional 
+statement based on the number of author_books (the if and else clauses).
+
+    - If there are books associated with the author then the page lists the books 
+and states that these must be deleted before this Author may be deleted.
+    - If there are no books then the page displays a confirmation prompt.
+    - If the Delete button is clicked then the author id is sent to the server in a 
+POST request and that author's record will be deleted.
+
+======= Añadimos el controll de delete
+Necesitamos agregar el delete control en la vissta de author detail (the detail page is a good place form which to delete
+a record)
+
+Note: In a full implementation the control would be made visible only to authorized users. 
+However at this point we haven't got an authorization system in place!
+
+Abrimos el author_detail.pug y agregamos las siguientes lineas en la parte de debajo 
+{
+    hr
+    p
+      a(href=author.url+'/delete') Delete author
+}
+
+
+======================== Update Book Form
+Este subarticulo ginal muestra como definir la pagina para actualizar los objetos books. 
+Form handling when updating a book is much like that for creating a book, except that you 
+must populate the form in the GET route with values from the database.
+
+===== Controller - get route
+Abrimos /controllers/bookController. Y rellenamos la exportación book_update_get() controller method
+y lo reemplazamos con esto: 
+{
+    // Display book update form on GET.
+    exports.book_update_get = (req, res, next) => {
+    // Get book, authors and genres for form.
+    async.parallel(
+        {
+        book(callback) {
+            Book.findById(req.params.id)
+            .populate("author")
+            .populate("genre")
+            .exec(callback);
+        },
+        authors(callback) {
+            Author.find(callback);
+        },
+        genres(callback) {
+            Genre.find(callback);
+        },
+        },
+        (err, results) => {
+        if (err) {
+            return next(err);
+        }
+        if (results.book == null) {
+            // No results.
+            const err = new Error("Book not found");
+            err.status = 404;
+            return next(err);
+        }
+        // Success.
+        // Mark our selected genres as checked.
+        for (const genre of results.genres) {
+            for (const bookGenre of results.book.genre) {
+            if (genre._id.toString() === bookGenre._id.toString()) {
+                genre.checked = "true";
+            }
+            }
+        }
+        res.render("book_form", {
+            title: "Update Book",
+            authors: results.authors,
+            genres: results.genres,
+            book: results.book,
+        });
+        }
+    );
+    };
+
+}
+The controller gets the id of the Book to be updated from the URL parameter (req.params.id). 
+It uses the async.parallel() method to get the specified Book record (populating its genre and 
+author fields) and lists of all the Author and Genre objects.
+
+When the operations complete it checks for any errors in the find operation, and also 
+whether any books were found.
+
+Note: Not finding any book results is not an error for a search — but it is for this 
+application because we know there must be a matching book record! The code above compares 
+for (results==null) in the callback, but it could equally well have daisy chained the method 
+orFail() to the query.
+
+We then mark the currently selected genres as checked and then render the book_form.pug 
+view, passing variables for title, book, all authors, and all genres.
+
+=============== Controller - post route UPDATE BOOK
+Ponemos en book_update_post() controller method el siguiente codigo: 
+{
+        // Handle book update on POST.
+    exports.book_update_post = [
+    // Convert the genre to an array
+    (req, res, next) => {
+        if (!Array.isArray(req.body.genre)) {
+        req.body.genre =
+            typeof req.body.genre === "undefined" ? [] : [req.body.genre];
+        }
+        next();
+    },
+
+    // Validate and sanitize fields.
+    body("title", "Title must not be empty.")
+        .trim()
+        .isLength({ min: 1 })
+        .escape(),
+    body("author", "Author must not be empty.")
+        .trim()
+        .isLength({ min: 1 })
+        .escape(),
+    body("summary", "Summary must not be empty.")
+        .trim()
+        .isLength({ min: 1 })
+        .escape(),
+    body("isbn", "ISBN must not be empty").trim().isLength({ min: 1 }).escape(),
+    body("genre.*").escape(),
+
+    // Process request after validation and sanitization.
+    (req, res, next) => {
+        // Extract the validation errors from a request.
+        const errors = validationResult(req);
+
+        // Create a Book object with escaped/trimmed data and old id.
+        const book = new Book({
+        title: req.body.title,
+        author: req.body.author,
+        summary: req.body.summary,
+        isbn: req.body.isbn,
+        genre: typeof req.body.genre === "undefined" ? [] : req.body.genre,
+        _id: req.params.id, //This is required, or a new ID will be assigned!
+        });
+
+        if (!errors.isEmpty()) {
+        // There are errors. Render form again with sanitized values/error messages.
+
+        // Get all authors and genres for form.
+        async.parallel(
+            {
+            authors(callback) {
+                Author.find(callback);
+            },
+            genres(callback) {
+                Genre.find(callback);
+            },
+            },
+            (err, results) => {
+            if (err) {
+                return next(err);
+            }
+
+            // Mark our selected genres as checked.
+            for (const genre of results.genres) {
+                if (book.genre.includes(genre._id)) {
+                genre.checked = "true";
+                }
+            }
+            res.render("book_form", {
+                title: "Update Book",
+                authors: results.authors,
+                genres: results.genres,
+                book,
+                errors: errors.array(),
+            });
+            }
+        );
+        return;
+        }
+
+        // Data from form is valid. Update the record.
+        Book.findByIdAndUpdate(req.params.id, book, {}, (err, thebook) => {
+        if (err) {
+            return next(err);
+        }
+
+        // Successful: redirect to book detail page.
+        res.redirect(thebook.url);
+        });
+    },
+    ];
+
+}
+
+This is very similar to the post route used when creating a Book. 
+First we validate and sanitize the book data from the form 
+and use it to create a new Book object (setting its _id value 
+to the id of the object to update). If there are errors when 
+we validate the data then we re-render the form, additionally 
+displaying the data entered by the user, the errors, and lists 
+of genres and authors. If there are no errors then we call Book.findByIdAndUpdate() 
+to update the Book document, and then redirect to its detail page.
+
+====== VIEW 
+PARA ESTE NO CREAMOS UNA NUEVA VIEW, SÓLO CAMBIAMOS UNA COSA DEL BOOK_FORM DE ANTES
+Abrimos /view/book_form.pug y actualizamos la sección dibde ek author form control esta poniendo el codigo
+condicional mostrado abajo 
+{
+    div.form-group
+      label(for='author') Author:
+      select#author.form-control(type='select' placeholder='Select author' name='author' required='true' )
+        - authors.sort(function(a, b) {let textA = a.family_name.toUpperCase(); let textB = b.family_name.toUpperCase(); return (textA < textB) ? -1 : (textA > textB) ? 1 : 0;});
+        for author in authors
+          if book
+            //- Handle GET form, where book.author is an object, and POST form, where it is a string.
+            option(
+              value=author._id
+              selected=(
+                author._id.toString()==book.author._id
+                || author._id.toString()==book.author //la ÚNICA DIFERENCIA, ES ESTA. 
+              ) ? 'selected' : false
+            ) #{author.name}
+          else
+            option(value=author._id) #{author.name}
+
+}
+
+Note: This code change is required so that the book_form can be used for both creating 
+and updating book objects (without this, there is an error on the GET route when creating a form).
+
+
+=========== Añadimos un boton de actualizar UPDATE button
+Open the book_detail.pug view and make sure there are links for both 
+deleting and updating books at the bottom of the page, as shown below. 
+
+{
+      hr
+    p
+        a(href=book.url+'/delete') Delete Book
+    p
+        a(href=book.url+'/update') Update Book
+
+}
+
+
+=============================== Challenge yourself
+Implement the delete pages for the Book, BookInstance, and Genre models, linking them 
+from the associated detail pages in the same way as our Author delete page. The pages should
+follow the same design approach:
+
+- if there are referencie to the objtect form other object,  then thse other object should be
+displayed along with a note that this record can't be deleted until the listed objects have
+been deleted.
+
+- If there are no other reference to the object then the view should prompt to delete it. If the user
+presses the delete button, the record hould then be deleted.
+
+A few tips.
+
+    - Deleting a Genre is just like deleting an Author as both objects are dependencies of Book (so in both
+    cases you can delete the object only when the associated books are deleted).
+    - Deleting a Book is also similar, but you need to check that there are no associated BookInstance.
+    - Deleting BookInstance is the easiest of all because there are no dependent object. In this case,
+    you can just find the associated record and delete it. 
+
+Implementhe the update pages for the BookInstance, Author, and Genre models, linking them from the associated detail pages
+in the same way as our Book update page.
+
+A few tips:
+
+    - The book update page we just implemented is the hardest! The same patterns can be used for
+    the update pages for the other objects.
+    - The Author date of death and date of birth fields and the BookInstance due_Date field are
+    the wrong format to input into the date input field on the format ( it requires data in form "yyyy-mm-dd").
+    The easiest way to get around this is to define a new virtual propery for the dates that formats the dates
+    appropriately, and then use this field in the associated view templates. 
+
+i did this with the following code
+{
+    BookInstanceSchema.virtual("due_back_yyyy_mm_dd").get(function () {
+    return DateTime.fromJSDate(this.due_back).toISODate();
+    })
+}
+
+is most similar as "due_back_formatted", but the only diference is that after (this.due_back) y put ".toISODate()" to 
+changue it to ISODATE() instead of toLocalString() 
 
 
 
