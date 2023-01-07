@@ -189,11 +189,81 @@ exports.author_delete_post = (req, res, next) => {
 
 
 // Display Author update form on GET.
-exports.author_update_get = (req, res) => {
-  res.send("NOT IMPLEMENTED: Author update GET");
+exports.author_update_get = (req, res, next) => {
+  // Get authors
+  Author.findById(req.params.id, (err, author) => {
+    if(err){
+      return next(err);
+    }
+    if(author == null){
+      const err = new Error("Author not found");
+      err.status = 404;
+      return next(err);
+    }
+    res.render("author_form", {
+      title: "Update Author",
+      author: author,
+    })
+    }
+  )
 };
 
 // Handle Author update on POST.
-exports.author_update_post = (req, res) => {
-  res.send("NOT IMPLEMENTED: Author update POST");
-};
+exports.author_update_post = [ // el request que normalmente está aca, se va para abajo 
+    // Validate and sanitize fields.
+    body("first_name")
+    .trim()
+    .isLength({ min: 1 })
+    .escape()
+    .withMessage("First name must be specified.")
+    .isAlphanumeric()
+    .withMessage("First name has non-alphanumeric characters."),
+  body("family_name")
+    .trim()
+    .isLength({ min: 1 })
+    .escape()
+    .withMessage("Family name must be specified.")
+    .isAlphanumeric()
+    .withMessage("Family name has non-alphanumeric characters."),
+  body("date_of_birth", "Invalid date of birth")
+    .optional({ checkFalsy: true })
+    .isISO8601()
+    .toDate(),
+  body("date_of_death", "Invalid date of death")
+    .optional({ checkFalsy: true })
+    .isISO8601()
+    .toDate(),
+
+    (req, res, next) => { // Acá comenzamos  con el middlware principal, lo anterior eran pequeños middlewares para
+			// verificar la información del body
+      const errors = validationResult(req);
+
+      const author = new Author({
+        first_name: req.body.first_name,
+        family_name: req.body.family_name,
+        date_of_birth: req.body.date_of_birth,
+        date_of_death: req.body.date_of_death,
+        _id: req.params.id, // Esto es necesario para que no se cree un nuevo id y se pueda ACTUALIZAR 
+      })
+
+      if (!errors.isEmpty()){
+          res.render("author_form", {
+            title: "Update Author",
+            author: author,
+            errors: errors.array(),
+          
+          }
+        )
+        return;
+      }
+      Author.findByIdAndUpdate(req.params.id, author, {}, (err, theauthor) => { //req.params.id es que busca por el id del request.
+          // luego, author es el objeto que nosotros asignamos, el tercer parametro se suele usar para aclarar qué propeidad del objeto se va a remover o reemplazar,
+          // pero en este caso, reemplazamos todo, por lo que no se aclara nada, luego pasamos un callback
+        if (err){
+          return next(err);
+        }
+        res.redirect(theauthor.url)
+      })
+
+    }
+]
