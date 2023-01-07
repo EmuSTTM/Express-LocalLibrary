@@ -4065,4 +4065,42 @@ is most similar as "due_back_formatted", but the only diference is that after (t
 changue it to ISODATE() instead of toLocalString() 
 
 
+============= DELETE BOOKINSTANCE 
+
+====== CONTROLLER GET MEHOT Export
+{
+    
+    // Display BookInstance delete form on GET.
+    exports.bookinstance_delete_get = (req, res, next) => {
+    BookInstance.findById(req.params.id)
+        .populate("book")
+        .exec((err, bookinstance) => {
+        if (err) {
+            return next(err);
+        }
+        if(bookinstance == null){
+            res.redirect("/catalog/bookinstances");
+        }
+        res.render("bookinstance_delete", {
+            title: "Delete Bookinstance",
+            bookinstance,
+        })
+    })
+    
+    };
+}
+
+============ CONTROLLER POST METHOD Export
+{
+    // Handle BookInstance delete on POST.
+    exports.bookinstance_delete_post = (req, res, next) => {
+        BookInstance.findByIdAndRemove(req.body.bookinstanceid, (err)=>{
+        if (err) {
+            return next(err);
+        }
+        res.redirect("/catalog/bookinstances");
+        });
+    };
+}
+
 
