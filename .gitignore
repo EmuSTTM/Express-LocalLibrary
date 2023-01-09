@@ -1,3 +1,7 @@
+# Until text
+*.txt
+
+
 # Logs
 logs
 *.log
