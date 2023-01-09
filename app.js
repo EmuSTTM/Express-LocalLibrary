@@ -8,7 +8,12 @@ const indexRouter = require('./routes/index');
 const usersRouter = require('./routes/users');
 const catalogRouter = require('./routes/catalog.js')
 
+const compression = require("compression");
+const helmet = require("helmet");
+
 var app = express();
+
+app.use(helmet())
 
 //Set up mongoose connection
 const mongoose = require('mongoose');
@@ -28,9 +33,12 @@ app.use(express.json());  // Configuración del morgan
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
+
+// Compress, required to optimize the HTTP response speed 
+app.use(compression())
+
 // static Views
 app.use(express.static(path.join(__dirname, 'public')));
-
 
 // routers - connecting to routes/ <-- this folder is the "controller" of this proyect
 app.use('/', indexRouter);
